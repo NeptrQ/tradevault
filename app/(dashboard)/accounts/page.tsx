@@ -2,10 +2,10 @@
 
 import React, { useState } from "react"
 import Link from "next/link"
-import { Plus, MoreHorizontal, AlertCircle, CheckCircle2, XCircle, Settings, Trash, Edit } from "lucide-react"
+import { Plus, MoreHorizontal, AlertCircle, Trash, Edit, Settings } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { 
@@ -20,65 +20,18 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { cn } from "@/lib/utils"
+import { cn, formatCurrency } from "@/lib/utils"
+import { useTradeStore } from "@/lib/store"
 import { toast } from "sonner"
 
-const formatCurrency = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value)
-
-// Mock Data
-const INITIAL_ACCOUNTS = [
-  { 
-    id: "1", 
-    name: "FTMO 100K Challenge", 
-    type: "Prop Firm", 
-    status: "Active", 
-    balance: 103240, 
-    initialBalance: 100000,
-    pnl: 3240,
-    profitTarget: 10000,
-    maxDrawdown: 10000,
-    dailyLoss: 5000,
-    currentDrawdown: 1500,
-    todayPnl: 450,
-  },
-  { 
-    id: "2", 
-    name: "Personal 25K", 
-    type: "Personal", 
-    status: "Active", 
-    balance: 24150, 
-    initialBalance: 25000,
-    pnl: -850,
-    profitTarget: null,
-    maxDrawdown: 5000,
-    dailyLoss: 1000,
-    currentDrawdown: 850,
-    todayPnl: -120,
-  },
-  { 
-    id: "3", 
-    name: "Demo Strategy Tester", 
-    type: "Demo", 
-    status: "Passed", 
-    balance: 11200, 
-    initialBalance: 10000,
-    pnl: 1200,
-    profitTarget: 1000,
-    maxDrawdown: 1000,
-    dailyLoss: 500,
-    currentDrawdown: 0,
-    todayPnl: 0,
-  },
-]
-
 export default function AccountsPage() {
+  const { accounts, trades, deleteAccount, addAccount, isLoaded } = useTradeStore()
   const [isSheetOpen, setIsSheetOpen] = useState(false)
-  const [accounts, setAccounts] = useState(INITIAL_ACCOUNTS)
   const [accountToDelete, setAccountToDelete] = useState<{ id: string; name: string } | null>(null)
 
   // Form state
   const [formName, setFormName] = useState("")
-  const [formType, setFormType] = useState("Prop Firm")
+  const [formType, setFormType] = useState<"prop_firm" | "personal" | "demo">("prop_firm")
   const [formBroker, setFormBroker] = useState("")
   const [formBalance, setFormBalance] = useState("100000")
   const [formTarget, setFormTarget] = useState("10000")
@@ -93,32 +46,38 @@ export default function AccountsPage() {
     }
 
     const initBal = parseFloat(formBalance) || 100000
-    const newAccount = {
-      id: Date.now().toString(),
+    addAccount({
       name: formName,
-      type: formType === "prop" ? "Prop Firm" : formType === "personal" ? "Personal" : "Demo",
-      status: "Active",
-      balance: initBal,
-      initialBalance: initBal,
-      pnl: 0,
-      profitTarget: formTarget ? parseFloat(formTarget) : null,
-      maxDrawdown: formMaxLoss ? parseFloat(formMaxLoss) : 5000,
-      dailyLoss: formDailyLoss ? parseFloat(formDailyLoss) : 2500,
-      currentDrawdown: 0,
-      todayPnl: 0,
-    }
+      type: formType,
+      broker: formBroker || undefined,
+      currency: "USD",
+      initial_balance: initBal,
+      current_balance: initBal,
+      profit_target: formTarget ? parseFloat(formTarget) : undefined,
+      max_total_loss: formMaxLoss ? parseFloat(formMaxLoss) : 5000,
+      daily_loss_limit: formDailyLoss ? parseFloat(formDailyLoss) : 2500,
+      status: "active",
+    })
 
-    setAccounts([newAccount, ...accounts])
     setIsSheetOpen(false)
     setFormName("")
+    setFormBroker("")
     toast.success(`Account "${formName}" added successfully!`)
   }
 
   const confirmDelete = () => {
     if (!accountToDelete) return
-    setAccounts((prev) => prev.filter((a) => a.id !== accountToDelete.id))
-    toast.success(`Account "${accountToDelete.name}" has been deleted`)
+    deleteAccount(accountToDelete.id)
+    toast.success(`Account "${accountToDelete.name}" and all its trades were deleted`)
     setAccountToDelete(null)
+  }
+
+  if (!isLoaded) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <p className="text-muted-foreground animate-pulse">Loading accounts...</p>
+      </div>
+    )
   }
 
   return (
@@ -151,13 +110,12 @@ export default function AccountsPage() {
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="type">Account Type</Label>
-                <Select value={formType} onValueChange={(val) => setFormType(val as string)}>
+                <Select value={formType} onValueChange={(val) => setFormType(val as any)}>
                   <SelectTrigger id="type">
                     <SelectValue placeholder="Select type" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="prop">Prop Firm Evaluation</SelectItem>
-                    <SelectItem value="funded">Funded Prop Account</SelectItem>
+                    <SelectItem value="prop_firm">Prop Firm Evaluation</SelectItem>
                     <SelectItem value="personal">Personal Broker</SelectItem>
                     <SelectItem value="demo">Demo Account</SelectItem>
                   </SelectContent>
@@ -263,120 +221,131 @@ export default function AccountsPage() {
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {accounts.map((account) => (
-            <Card key={account.id} className="flex flex-col">
-              <CardHeader className="pb-2">
-                <div className="flex items-start justify-between">
-                  <div className="space-y-1">
-                    <CardTitle className="text-xl">{account.name}</CardTitle>
-                    <div className="flex items-center space-x-2">
-                      <Badge variant="outline" className="bg-muted">{account.type}</Badge>
-                      <Badge 
-                        variant={account.status === 'Active' ? 'default' : account.status === 'Passed' ? 'secondary' : 'destructive'}
-                        className={cn(
-                          account.status === 'Active' && "bg-blue-500/10 text-blue-500 hover:bg-blue-500/20",
-                          account.status === 'Passed' && "bg-green-500/10 text-green-500 hover:bg-green-500/20",
-                        )}
-                      >
-                        {account.status}
-                      </Badge>
-                    </div>
-                  </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger>
-                      <div className="h-8 w-8 p-0 flex items-center justify-center rounded-md hover:bg-muted transition-colors cursor-pointer">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </div>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                      <DropdownMenuItem onClick={() => toast.info(`Editing ${account.name}`)}>
-                        <Edit className="mr-2 h-4 w-4" /> Edit Details
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => toast.info(`Account Settings for ${account.name}`)}>
-                        <Settings className="mr-2 h-4 w-4" /> Settings
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem 
-                        className="text-red-600 focus:text-red-600 cursor-pointer"
-                        onClick={() => setAccountToDelete({ id: account.id, name: account.name })}
-                      >
-                        <Trash className="mr-2 h-4 w-4" /> Delete Account
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </CardHeader>
-              <CardContent className="flex-1 pb-2">
-                <div className="mt-4 grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Balance</p>
-                    <p className="text-2xl font-bold">{formatCurrency(account.balance)}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-medium text-muted-foreground">Total P&L</p>
-                    <p className={cn("text-2xl font-bold", account.pnl > 0 ? "text-green-500" : account.pnl < 0 ? "text-red-500" : "")}>
-                      {account.pnl > 0 ? "+" : ""}{formatCurrency(account.pnl)}
-                    </p>
-                  </div>
-                </div>
+          {accounts.map((account) => {
+            const accTrades = trades.filter((t) => t.account_id === account.id)
+            const totalPnl = accTrades.reduce((sum, t) => sum + (t.net_pnl ?? 0), 0)
+            const currentBalance = (account.initial_balance ?? 0) + totalPnl
+            const typeLabel = account.type === 'prop_firm' ? 'Prop Firm' : account.type === 'personal' ? 'Personal' : 'Demo'
 
-                <div className="mt-6 space-y-4">
-                  {/* Profit Target */}
-                  {account.profitTarget && (
+            return (
+              <Card key={account.id} className="flex flex-col">
+                <CardHeader className="pb-2">
+                  <div className="flex items-start justify-between">
                     <div className="space-y-1">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-muted-foreground">Profit Target</span>
-                        <span className={cn("font-medium", account.pnl >= account.profitTarget ? "text-green-500" : "")}>
-                          {formatCurrency(Math.max(0, account.pnl))} / {formatCurrency(account.profitTarget)}
-                        </span>
+                      <CardTitle className="text-xl">{account.name}</CardTitle>
+                      <div className="flex items-center space-x-2">
+                        <Badge variant="outline" className="bg-muted">{typeLabel}</Badge>
+                        <Badge 
+                          variant={account.status === 'active' ? 'default' : account.status === 'passed' ? 'secondary' : 'destructive'}
+                          className={cn(
+                            account.status === 'active' && "bg-blue-500/10 text-blue-500 hover:bg-blue-500/20",
+                            account.status === 'passed' && "bg-green-500/10 text-green-500 hover:bg-green-500/20",
+                          )}
+                        >
+                          {account.status.toUpperCase()}
+                        </Badge>
                       </div>
-                      <Progress 
-                        value={Math.max(0, Math.min(100, (account.pnl / account.profitTarget) * 100))} 
-                        className="h-1.5 [&>div]:bg-green-500" 
-                      />
                     </div>
-                  )}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger>
+                        <div className="h-8 w-8 p-0 flex items-center justify-center rounded-md hover:bg-muted transition-colors cursor-pointer">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </div>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                        <DropdownMenuItem onClick={() => toast.info(`Editing ${account.name}`)}>
+                          <Edit className="mr-2 h-4 w-4" /> Edit Details
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => toast.info(`Account Settings for ${account.name}`)}>
+                          <Settings className="mr-2 h-4 w-4" /> Settings
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem 
+                          className="text-red-600 focus:text-red-600 cursor-pointer"
+                          onClick={() => setAccountToDelete({ id: account.id, name: account.name })}
+                        >
+                          <Trash className="mr-2 h-4 w-4" /> Delete Account
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </CardHeader>
+                <CardContent className="flex-1 pb-2">
+                  <div className="mt-4 grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Balance</p>
+                      <p className="text-2xl font-bold">{formatCurrency(currentBalance)}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-medium text-muted-foreground">Total P&L</p>
+                      <p className={cn("text-2xl font-bold", totalPnl > 0 ? "text-green-500" : totalPnl < 0 ? "text-red-500" : "")}>
+                        {totalPnl > 0 ? "+" : ""}{formatCurrency(totalPnl)}
+                      </p>
+                    </div>
+                  </div>
 
-                  {/* Drawdown */}
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-muted-foreground">Max Drawdown</span>
-                      <span className={cn("font-medium", (account.currentDrawdown / account.maxDrawdown) > 0.8 ? "text-red-500" : "")}>
-                        {formatCurrency(account.maxDrawdown - account.currentDrawdown)} left
-                      </span>
-                    </div>
-                    <Progress 
-                      value={(account.currentDrawdown / account.maxDrawdown) * 100} 
-                      className={cn("h-1.5", (account.currentDrawdown / account.maxDrawdown) > 0.8 ? "[&>div]:bg-red-500" : "[&>div]:bg-yellow-500")} 
-                    />
+                  <div className="mt-6 space-y-4">
+                    {/* Profit Target */}
+                    {account.profit_target && (
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">Profit Target</span>
+                          <span className={cn("font-medium", totalPnl >= account.profit_target ? "text-green-500" : "")}>
+                            {formatCurrency(Math.max(0, totalPnl))} / {formatCurrency(account.profit_target)}
+                          </span>
+                        </div>
+                        <Progress 
+                          value={Math.max(0, Math.min(100, (totalPnl / account.profit_target) * 100))} 
+                          className="h-1.5 [&>div]:bg-green-500" 
+                        />
+                      </div>
+                    )}
+
+                    {/* Max Loss / Drawdown */}
+                    {account.max_total_loss && (
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">Max Loss Buffer</span>
+                          <span className="font-medium">
+                            {formatCurrency(account.max_total_loss - Math.max(0, -totalPnl))} remaining
+                          </span>
+                        </div>
+                        <Progress 
+                          value={Math.min(100, (Math.max(0, -totalPnl) / account.max_total_loss) * 100)} 
+                          className={cn("h-1.5", (-totalPnl / account.max_total_loss) > 0.8 ? "[&>div]:bg-red-500" : "[&>div]:bg-yellow-500")} 
+                        />
+                      </div>
+                    )}
+                    
+                    {/* Daily Loss */}
+                    {account.daily_loss_limit && (
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">Daily Limit</span>
+                          <span className="font-medium">
+                            {formatCurrency(account.daily_loss_limit)} / day
+                          </span>
+                        </div>
+                        <Progress 
+                          value={0} 
+                          className="h-1.5 [&>div]:bg-blue-500" 
+                        />
+                      </div>
+                    )}
                   </div>
-                  
-                  {/* Daily Loss */}
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-muted-foreground">Daily Limit</span>
-                      <span className="font-medium">
-                        {formatCurrency(account.dailyLoss + (account.todayPnl < 0 ? account.todayPnl : 0))} left
-                      </span>
-                    </div>
-                    <Progress 
-                      value={account.todayPnl < 0 ? (Math.abs(account.todayPnl) / account.dailyLoss) * 100 : 0} 
-                      className="h-1.5 [&>div]:bg-blue-500" 
-                    />
-                  </div>
-                </div>
-              </CardContent>
-              <CardFooter className="pt-4 border-t flex justify-between mt-4">
-                <Link href={`/accounts/${account.id}`} className="w-[48%]">
-                  <Button variant="outline" className="w-full">View Stats</Button>
-                </Link>
-                <Link href={`/trades/new?account=${encodeURIComponent(account.name)}`} className="w-[48%]">
-                  <Button variant="secondary" className="w-full">Log Trade</Button>
-                </Link>
-              </CardFooter>
-            </Card>
-          ))}
+                </CardContent>
+                <CardFooter className="pt-4 border-t flex justify-between mt-4">
+                  <Link href={`/accounts/${account.id}`} className="w-[48%]">
+                    <Button variant="outline" className="w-full">View Stats</Button>
+                  </Link>
+                  <Link href={`/trades/new?account=${encodeURIComponent(account.name)}`} className="w-[48%]">
+                    <Button variant="secondary" className="w-full">Log Trade</Button>
+                  </Link>
+                </CardFooter>
+              </Card>
+            )
+          })}
         </div>
       )}
 
@@ -386,7 +355,7 @@ export default function AccountsPage() {
           <DialogHeader>
             <DialogTitle>Delete Account</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete &ldquo;{accountToDelete?.name}&rdquo;? This will remove all associated statistics and logs. This action cannot be undone.
+              Are you sure you want to delete &ldquo;{accountToDelete?.name}&rdquo;? All trades and statistics belonging to this account will also be permanently deleted.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex gap-2 justify-end mt-4">
@@ -394,7 +363,7 @@ export default function AccountsPage() {
               Cancel
             </Button>
             <Button variant="destructive" onClick={confirmDelete}>
-              Delete Account
+              Delete Account &amp; Trades
             </Button>
           </DialogFooter>
         </DialogContent>

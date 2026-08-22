@@ -1,121 +1,168 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
+import Link from 'next/link';
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, 
   ResponsiveContainer, PieChart, Pie, Cell, Legend
 } from 'recharts';
 import { 
-  Filter, Calendar as CalendarIcon, TrendingUp, TrendingDown, 
-  Percent, Target, Activity, DollarSign, Crosshair
+  TrendingUp, TrendingDown, Target, Activity, DollarSign, Crosshair, Plus
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
-
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { cn, formatCurrency } from '@/lib/utils';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-
-// --- Demo Data ---
-
-const equityData = Array.from({ length: 90 }, (_, i) => ({
-  day: i + 1,
-  equity: 10000 + (Math.sin(i / 10) * 500) + (i * 20) + (Math.random() * 200 - 100)
-}));
-
-const dailyPnlData = Array.from({ length: 30 }, (_, i) => ({
-  date: `2026-08-${(i + 1).toString().padStart(2, '0')}`,
-  pnl: Math.random() > 0.4 ? Math.floor(Math.random() * 500) : -Math.floor(Math.random() * 300)
-}));
-
-const monthlyData = [
-  { month: 'Jan', pnl: 1200 }, { month: 'Feb', pnl: -400 }, { month: 'Mar', pnl: 2100 },
-  { month: 'Apr', pnl: 1500 }, { month: 'May', pnl: -800 }, { month: 'Jun', pnl: 3200 },
-  { month: 'Jul', pnl: 2800 }, { month: 'Aug', pnl: 1800 },
-];
-
-const drawdownData = Array.from({ length: 90 }, (_, i) => {
-  const dd = Math.min(0, Math.sin(i / 5) * 5 - (Math.random() * 2));
-  return { day: i + 1, drawdown: dd };
-});
-
-const rDistributionData = [
-  { r: '< -1R', count: 12 }, { r: '-1R', count: 35 }, { r: '-0.5R', count: 15 },
-  { r: 'Break Even', count: 20 }, { r: '+1R', count: 25 }, { r: '+2R', count: 18 },
-  { r: '+3R', count: 10 }, { r: '> +3R', count: 5 }
-];
-
-const winLossData = [
-  { name: 'Wins', value: 58, color: '#22c55e' },
-  { name: 'Losses', value: 35, color: '#ef4444' },
-  { name: 'Break Even', value: 7, color: '#94a3b8' }
-];
-
-const symbolPerformance = [
-  { symbol: 'EURUSD', trades: 40, winRate: 65, pnl: 1250, avgPnl: 31.25, pf: 2.4 },
-  { symbol: 'GBPUSD', trades: 30, winRate: 55, pnl: 850, avgPnl: 28.33, pf: 1.8 },
-  { symbol: 'XAUUSD', trades: 25, winRate: 45, pnl: -350, avgPnl: -14.00, pf: 0.8 },
-  { symbol: 'NASDAQ', trades: 20, winRate: 70, pnl: 2100, avgPnl: 105.00, pf: 3.2 },
-  { symbol: 'US30', trades: 35, winRate: 52, pnl: 450, avgPnl: 12.85, pf: 1.2 },
-];
-
-const strategyPerformance = [
-  { strategy: 'Breakout', trades: 50, winRate: 62, pnl: 1800, expectancy: 36.0 },
-  { strategy: 'Trend Follow', trades: 40, winRate: 55, pnl: 1200, expectancy: 30.0 },
-  { strategy: 'Reversal', trades: 30, winRate: 40, pnl: -250, expectancy: -8.3 },
-  { strategy: 'Scalp', trades: 30, winRate: 72, pnl: 1550, expectancy: 51.6 },
-];
-
-const sessionPerformance = [
-  { session: 'London', trades: 60, winRate: 60, pnl: 2100 },
-  { session: 'New York', trades: 50, winRate: 58, pnl: 1850 },
-  { session: 'Asian', trades: 25, winRate: 45, pnl: -350 },
-  { session: 'After Hours', trades: 15, winRate: 50, pnl: 100 },
-];
-
-const dayOfWeekPerformance = [
-  { day: 'Monday', trades: 35, winRate: 55, pnl: 850 },
-  { day: 'Tuesday', trades: 28, winRate: 68, pnl: 1400 },
-  { day: 'Wednesday', trades: 32, winRate: 60, pnl: 1100 },
-  { day: 'Thursday', trades: 25, winRate: 40, pnl: -400 },
-  { day: 'Friday', trades: 30, winRate: 65, pnl: 1350 },
-];
-
-// --- Components ---
+import { useTradeStore } from '@/lib/store';
+import { 
+  calculatePerformanceStats, 
+  getEquityCurve, 
+  getDailyPnL, 
+  getMonthlyPnL, 
+  getSymbolPerformance, 
+  getStrategyPerformance, 
+  getSessionPerformance, 
+  getDayOfWeekPerformance,
+  getRMultipleDistribution
+} from '@/lib/analytics/calculations';
 
 export default function AnalyticsPage() {
-  const [dateRange, setDateRange] = useState('3M');
+  const { accounts, trades, selectedAccountId, setSelectedAccountId, isLoaded } = useTradeStore();
+  const [selectedSymbol, setSelectedSymbol] = useState<string>('all');
+  const [dateRange, setDateRange] = useState<string>('All');
+
+  const symbolList = useMemo(() => {
+    return ['all', ...Array.from(new Set(trades.map(t => t.symbol)))];
+  }, [trades]);
+
+  const filteredTrades = useMemo(() => {
+    return trades.filter(trade => {
+      const matchAcc = selectedAccountId === 'all' || trade.account_id === selectedAccountId;
+      const matchSym = selectedSymbol === 'all' || trade.symbol === selectedSymbol;
+      return matchAcc && matchSym;
+    });
+  }, [trades, selectedAccountId, selectedSymbol]);
+
+  const currentAcc = accounts.find(a => a.id === selectedAccountId);
+  const initialBal = currentAcc?.initial_balance || accounts.reduce((sum, a) => sum + (a.initial_balance || 0), 0) || 100000;
+
+  const stats = useMemo(() => {
+    return calculatePerformanceStats(filteredTrades, initialBal);
+  }, [filteredTrades, initialBal]);
+
+  const equityData = useMemo(() => {
+    return getEquityCurve(filteredTrades, initialBal);
+  }, [filteredTrades, initialBal]);
+
+  const dailyPnlData = useMemo(() => {
+    return getDailyPnL(filteredTrades);
+  }, [filteredTrades]);
+
+  const monthlyData = useMemo(() => {
+    return getMonthlyPnL(filteredTrades);
+  }, [filteredTrades]);
+
+  const rDistData = useMemo(() => {
+    return getRMultipleDistribution(filteredTrades);
+  }, [filteredTrades]);
+
+  const symbolStats = useMemo(() => {
+    return getSymbolPerformance(filteredTrades);
+  }, [filteredTrades]);
+
+  const strategyStats = useMemo(() => {
+    return getStrategyPerformance(filteredTrades);
+  }, [filteredTrades]);
+
+  const sessionStats = useMemo(() => {
+    return getSessionPerformance(filteredTrades);
+  }, [filteredTrades]);
+
+  const dayOfWeekStats = useMemo(() => {
+    return getDayOfWeekPerformance(filteredTrades);
+  }, [filteredTrades]);
+
+  const winLossData = useMemo(() => {
+    const closed = filteredTrades.filter(t => t.status === 'closed');
+    const wins = closed.filter(t => (t.net_pnl ?? 0) > 0).length;
+    const losses = closed.filter(t => (t.net_pnl ?? 0) < 0).length;
+    const be = closed.filter(t => (t.net_pnl ?? 0) === 0).length;
+    return [
+      { name: 'Wins', value: wins, color: '#22c55e' },
+      { name: 'Losses', value: losses, color: '#ef4444' },
+      { name: 'Breakeven', value: be, color: '#94a3b8' },
+    ];
+  }, [filteredTrades]);
+
+  if (!isLoaded) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <p className="text-muted-foreground animate-pulse">Loading analytics...</p>
+      </div>
+    );
+  }
+
+  if (filteredTrades.length === 0) {
+    return (
+      <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold tracking-tight">Analytics</h1>
+        </div>
+        <div className="flex h-[450px] shrink-0 items-center justify-center rounded-lg border border-dashed p-8 text-center">
+          <div className="mx-auto flex max-w-[420px] flex-col items-center justify-center text-center">
+            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-muted">
+              <Activity className="h-10 w-10 text-muted-foreground" />
+            </div>
+            <h3 className="mt-4 text-xl font-semibold">No Trade Data Found</h3>
+            <p className="mb-4 mt-2 text-sm text-muted-foreground">
+              {accounts.length === 0 
+                ? "You haven't added any trading accounts yet. Add an account and log trades to generate analytics."
+                : "No closed trades match the selected account filter. Log a trade to populate the performance charts."
+              }
+            </p>
+            <Link href="/trades/new">
+              <Button>
+                <Plus className="mr-2 h-4 w-4" /> Log a Trade
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-6 p-4 md:p-6 lg:p-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Analytics</h1>
-          <p className="text-muted-foreground">Deep dive into your trading performance metrics.</p>
+          <p className="text-muted-foreground">Comprehensive statistical analysis of your closed trades.</p>
         </div>
         
         {/* Filters */}
         <div className="flex flex-wrap items-center gap-2">
-          <Select defaultValue="all-accounts">
-            <SelectTrigger className="w-[140px]">
+          <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
+            <SelectTrigger className="w-[160px]">
               <SelectValue placeholder="Account" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all-accounts">All Accounts</SelectItem>
-              <SelectItem value="live-1">Live Account 1</SelectItem>
-              <SelectItem value="prop-1">Prop Firm 1</SelectItem>
+              <SelectItem value="all">All Accounts</SelectItem>
+              {accounts.map(acc => (
+                <SelectItem key={acc.id} value={acc.id}>{acc.name}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
 
-          <Select defaultValue="all-symbols">
+          <Select value={selectedSymbol} onValueChange={setSelectedSymbol}>
             <SelectTrigger className="w-[140px]">
               <SelectValue placeholder="Symbol" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all-symbols">All Symbols</SelectItem>
-              <SelectItem value="eurusd">EURUSD</SelectItem>
-              <SelectItem value="nq">NASDAQ</SelectItem>
+              {symbolList.map(sym => (
+                <SelectItem key={sym} value={sym}>{sym === 'all' ? 'All Symbols' : sym}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
           
@@ -136,34 +183,38 @@ export default function AnalyticsPage() {
       </div>
 
       {/* KPI Cards Row */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-8">
-        <MetricCard title="Total P&L" value="$4,300" icon={<DollarSign />} trend="up" />
-        <MetricCard title="Win Rate" value="58%" icon={<Target />} trend="up" />
-        <MetricCard title="Profit Factor" value="2.1" icon={<TrendingUp />} trend="up" />
-        <MetricCard title="Expectancy" value="$28.6" icon={<Activity />} />
-        <MetricCard title="Avg R" value="1.4R" icon={<Crosshair />} />
-        <MetricCard title="Max Drawdown" value="-4.2%" icon={<TrendingDown />} trend="down" negative />
-        <MetricCard title="Avg Win" value="$245" icon={<TrendingUp className="text-green-500" />} />
-        <MetricCard title="Avg Loss" value="-$115" icon={<TrendingDown className="text-red-500" />} />
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-8">
+        <MetricCard 
+          title="Total P&amp;L" 
+          value={`${stats.total_pnl > 0 ? '+' : ''}${formatCurrency(stats.total_pnl)}`} 
+          icon={<DollarSign />} 
+          trend={stats.total_pnl >= 0 ? "up" : "down"} 
+        />
+        <MetricCard title="Win Rate" value={`${stats.win_rate.toFixed(1)}%`} icon={<Target />} trend={stats.win_rate >= 50 ? "up" : "down"} />
+        <MetricCard title="Profit Factor" value={stats.profit_factor === Infinity ? "∞" : stats.profit_factor.toFixed(2)} icon={<TrendingUp />} trend={stats.profit_factor >= 1.5 ? "up" : "down"} />
+        <MetricCard title="Expectancy" value={`${stats.expectancy > 0 ? '+' : ''}${formatCurrency(stats.expectancy)}`} icon={<Activity />} />
+        <MetricCard title="Avg R" value={`${stats.avg_r > 0 ? '+' : ''}${stats.avg_r.toFixed(2)}R`} icon={<Crosshair />} />
+        <MetricCard title="Max Drawdown" value={`-${stats.max_drawdown.toFixed(1)}%`} icon={<TrendingDown />} trend="down" negative />
+        <MetricCard title="Avg Win" value={`+${formatCurrency(stats.avg_win)}`} icon={<TrendingUp className="text-green-500" />} />
+        <MetricCard title="Avg Loss" value={`-${formatCurrency(stats.avg_loss)}`} icon={<TrendingDown className="text-red-500" />} />
       </div>
 
       {/* Charts Section */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle>Performance Charts</CardTitle>
+          <CardTitle>Performance Visualizations</CardTitle>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="equity" className="w-full">
             <TabsList className="mb-4">
               <TabsTrigger value="equity">Equity Curve</TabsTrigger>
-              <TabsTrigger value="daily">Daily P&L</TabsTrigger>
-              <TabsTrigger value="monthly">Monthly P&L</TabsTrigger>
-              <TabsTrigger value="drawdown">Drawdown</TabsTrigger>
+              <TabsTrigger value="daily">Daily P&amp;L</TabsTrigger>
+              <TabsTrigger value="monthly">Monthly P&amp;L</TabsTrigger>
               <TabsTrigger value="rdist">R Distribution</TabsTrigger>
-              <TabsTrigger value="winloss">Win/Loss</TabsTrigger>
+              <TabsTrigger value="winloss">Win/Loss Ratio</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="equity" className="h-[400px]">
+            <TabsContent value="equity" className="h-[380px]">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={equityData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                   <defs>
@@ -173,29 +224,28 @@ export default function AnalyticsPage() {
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                  <XAxis dataKey="day" hide />
+                  <XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" fontSize={12} />
                   <YAxis domain={['auto', 'auto']} tickFormatter={(val) => `$${val}`} stroke="hsl(var(--muted-foreground))" fontSize={12} />
                   <RechartsTooltip 
                     contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
                     itemStyle={{ color: 'hsl(var(--foreground))' }}
-                    formatter={(value: number) => [`$${value.toFixed(2)}`, 'Equity']}
-                    labelFormatter={() => ''}
+                    formatter={(value: any) => [formatCurrency(value as number), 'Equity']}
                   />
                   <Area type="monotone" dataKey="equity" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorEquity)" />
                 </AreaChart>
               </ResponsiveContainer>
             </TabsContent>
 
-            <TabsContent value="daily" className="h-[400px]">
+            <TabsContent value="daily" className="h-[380px]">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={dailyPnlData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                  <XAxis dataKey="date" tickFormatter={(val) => val.substring(8,10)} stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                  <XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickFormatter={(val) => `$${val}`} />
                   <RechartsTooltip 
                     contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
                     cursor={{ fill: 'hsl(var(--muted))' }}
-                    formatter={(value: number) => [`$${value}`, 'P&L']}
+                    formatter={(value: any) => [formatCurrency(value as number), 'P&L']}
                   />
                   <Bar dataKey="pnl">
                     {dailyPnlData.map((entry, index) => (
@@ -206,15 +256,16 @@ export default function AnalyticsPage() {
               </ResponsiveContainer>
             </TabsContent>
 
-            <TabsContent value="monthly" className="h-[400px]">
+            <TabsContent value="monthly" className="h-[380px]">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={monthlyData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
                   <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickFormatter={(val) => `$${val}`} />
                   <RechartsTooltip 
                     contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
                     cursor={{ fill: 'hsl(var(--muted))' }}
+                    formatter={(value: any) => [formatCurrency(value as number), 'P&L']}
                   />
                   <Bar dataKey="pnl" radius={[4, 4, 0, 0]}>
                     {monthlyData.map((entry, index) => (
@@ -225,30 +276,9 @@ export default function AnalyticsPage() {
               </ResponsiveContainer>
             </TabsContent>
 
-            <TabsContent value="drawdown" className="h-[400px]">
+            <TabsContent value="rdist" className="h-[380px]">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={drawdownData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorDd" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                  <XAxis dataKey="day" hide />
-                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickFormatter={(v) => `${v}%`} />
-                  <RechartsTooltip 
-                    contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
-                    formatter={(value: number) => [`${value.toFixed(2)}%`, 'Drawdown']}
-                  />
-                  <Area type="step" dataKey="drawdown" stroke="#ef4444" strokeWidth={2} fill="url(#colorDd)" />
-                </AreaChart>
-              </ResponsiveContainer>
-            </TabsContent>
-
-            <TabsContent value="rdist" className="h-[400px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={rDistributionData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                <BarChart data={rDistData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
                   <XAxis dataKey="r" stroke="hsl(var(--muted-foreground))" fontSize={12} />
                   <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
@@ -261,15 +291,15 @@ export default function AnalyticsPage() {
               </ResponsiveContainer>
             </TabsContent>
 
-            <TabsContent value="winloss" className="h-[400px] flex items-center justify-center">
+            <TabsContent value="winloss" className="h-[380px] flex items-center justify-center">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
                     data={winLossData}
                     cx="50%"
                     cy="50%"
-                    innerRadius={80}
-                    outerRadius={140}
+                    innerRadius={70}
+                    outerRadius={130}
                     paddingAngle={5}
                     dataKey="value"
                   >
@@ -295,136 +325,152 @@ export default function AnalyticsPage() {
         {/* Symbol Performance */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Symbol Performance</CardTitle>
+            <CardTitle className="text-lg">Symbol Breakdown</CardTitle>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Symbol</TableHead>
-                  <TableHead className="text-right">Trades</TableHead>
-                  <TableHead className="text-right">Win %</TableHead>
-                  <TableHead className="text-right">P&L</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {symbolPerformance.map((item) => (
-                  <TableRow key={item.symbol}>
-                    <TableCell className="font-medium">{item.symbol}</TableCell>
-                    <TableCell className="text-right">{item.trades}</TableCell>
-                    <TableCell className="text-right">{item.winRate}%</TableCell>
-                    <TableCell className={cn(
-                      "text-right font-semibold",
-                      item.pnl > 0 ? "text-green-500" : item.pnl < 0 ? "text-red-500" : ""
-                    )}>
-                      {item.pnl > 0 ? '+' : ''}${item.pnl}
-                    </TableCell>
+            {symbolStats.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">No symbol history</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Symbol</TableHead>
+                    <TableHead className="text-right">Trades</TableHead>
+                    <TableHead className="text-right">Win %</TableHead>
+                    <TableHead className="text-right">P&amp;L</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {symbolStats.map((item) => (
+                    <TableRow key={item.symbol}>
+                      <TableCell className="font-medium">{item.symbol}</TableCell>
+                      <TableCell className="text-right">{item.trades}</TableCell>
+                      <TableCell className="text-right">{item.win_rate.toFixed(0)}%</TableCell>
+                      <TableCell className={cn(
+                        "text-right font-semibold",
+                        item.total_pnl > 0 ? "text-green-500" : item.total_pnl < 0 ? "text-red-500" : ""
+                      )}>
+                        {item.total_pnl > 0 ? '+' : ''}{formatCurrency(item.total_pnl)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
 
         {/* Strategy Performance */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Strategy Performance</CardTitle>
+            <CardTitle className="text-lg">Strategy Breakdown</CardTitle>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Strategy</TableHead>
-                  <TableHead className="text-right">Trades</TableHead>
-                  <TableHead className="text-right">Win %</TableHead>
-                  <TableHead className="text-right">P&L</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {strategyPerformance.map((item) => (
-                  <TableRow key={item.strategy}>
-                    <TableCell className="font-medium">{item.strategy}</TableCell>
-                    <TableCell className="text-right">{item.trades}</TableCell>
-                    <TableCell className="text-right">{item.winRate}%</TableCell>
-                    <TableCell className={cn(
-                      "text-right font-semibold",
-                      item.pnl > 0 ? "text-green-500" : item.pnl < 0 ? "text-red-500" : ""
-                    )}>
-                      {item.pnl > 0 ? '+' : ''}${item.pnl}
-                    </TableCell>
+            {strategyStats.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">No strategy history</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Strategy</TableHead>
+                    <TableHead className="text-right">Trades</TableHead>
+                    <TableHead className="text-right">Win %</TableHead>
+                    <TableHead className="text-right">P&amp;L</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {strategyStats.map((item) => (
+                    <TableRow key={item.strategy}>
+                      <TableCell className="font-medium">{item.strategy}</TableCell>
+                      <TableCell className="text-right">{item.trades}</TableCell>
+                      <TableCell className="text-right">{item.win_rate.toFixed(0)}%</TableCell>
+                      <TableCell className={cn(
+                        "text-right font-semibold",
+                        item.total_pnl > 0 ? "text-green-500" : item.total_pnl < 0 ? "text-red-500" : ""
+                      )}>
+                        {item.total_pnl > 0 ? '+' : ''}{formatCurrency(item.total_pnl)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
 
         {/* Session Performance */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Session Performance</CardTitle>
+            <CardTitle className="text-lg">Session Breakdown</CardTitle>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Session</TableHead>
-                  <TableHead className="text-right">Trades</TableHead>
-                  <TableHead className="text-right">Win %</TableHead>
-                  <TableHead className="text-right">P&L</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sessionPerformance.map((item) => (
-                  <TableRow key={item.session}>
-                    <TableCell className="font-medium">{item.session}</TableCell>
-                    <TableCell className="text-right">{item.trades}</TableCell>
-                    <TableCell className="text-right">{item.winRate}%</TableCell>
-                    <TableCell className={cn(
-                      "text-right font-semibold",
-                      item.pnl > 0 ? "text-green-500" : item.pnl < 0 ? "text-red-500" : ""
-                    )}>
-                      {item.pnl > 0 ? '+' : ''}${item.pnl}
-                    </TableCell>
+            {sessionStats.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">No session history</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Session</TableHead>
+                    <TableHead className="text-right">Trades</TableHead>
+                    <TableHead className="text-right">Win %</TableHead>
+                    <TableHead className="text-right">P&amp;L</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {sessionStats.map((item) => (
+                    <TableRow key={item.session}>
+                      <TableCell className="font-medium">{item.session}</TableCell>
+                      <TableCell className="text-right">{item.trades}</TableCell>
+                      <TableCell className="text-right">{item.win_rate.toFixed(0)}%</TableCell>
+                      <TableCell className={cn(
+                        "text-right font-semibold",
+                        item.total_pnl > 0 ? "text-green-500" : item.total_pnl < 0 ? "text-red-500" : ""
+                      )}>
+                        {item.total_pnl > 0 ? '+' : ''}{formatCurrency(item.total_pnl)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
 
         {/* Day of Week Performance */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Day of Week Performance</CardTitle>
+            <CardTitle className="text-lg">Day of Week Breakdown</CardTitle>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Day</TableHead>
-                  <TableHead className="text-right">Trades</TableHead>
-                  <TableHead className="text-right">Win %</TableHead>
-                  <TableHead className="text-right">P&L</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {dayOfWeekPerformance.map((item) => (
-                  <TableRow key={item.day}>
-                    <TableCell className="font-medium">{item.day}</TableCell>
-                    <TableCell className="text-right">{item.trades}</TableCell>
-                    <TableCell className="text-right">{item.winRate}%</TableCell>
-                    <TableCell className={cn(
-                      "text-right font-semibold",
-                      item.pnl > 0 ? "text-green-500" : item.pnl < 0 ? "text-red-500" : ""
-                    )}>
-                      {item.pnl > 0 ? '+' : ''}${item.pnl}
-                    </TableCell>
+            {dayOfWeekStats.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">No day history</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Day</TableHead>
+                    <TableHead className="text-right">Trades</TableHead>
+                    <TableHead className="text-right">Win %</TableHead>
+                    <TableHead className="text-right">P&amp;L</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {dayOfWeekStats.map((item) => (
+                    <TableRow key={item.day}>
+                      <TableCell className="font-medium">{item.day}</TableCell>
+                      <TableCell className="text-right">{item.trades}</TableCell>
+                      <TableCell className="text-right">{item.win_rate.toFixed(0)}%</TableCell>
+                      <TableCell className={cn(
+                        "text-right font-semibold",
+                        item.total_pnl > 0 ? "text-green-500" : item.total_pnl < 0 ? "text-red-500" : ""
+                      )}>
+                        {item.total_pnl > 0 ? '+' : ''}{formatCurrency(item.total_pnl)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
 
@@ -433,21 +479,20 @@ export default function AnalyticsPage() {
   );
 }
 
-// --- Helper Component ---
 function MetricCard({ title, value, icon, trend, negative }: { title: string, value: string, icon: React.ReactNode, trend?: 'up' | 'down', negative?: boolean }) {
   return (
-    <Card className="flex flex-col justify-center p-4">
-      <div className="flex items-center justify-between gap-2">
+    <Card className="flex flex-col justify-center p-3.5">
+      <div className="flex items-center justify-between gap-1.5">
         <span className="text-xs text-muted-foreground whitespace-nowrap overflow-hidden text-ellipsis">{title}</span>
-        <div className="text-muted-foreground opacity-50 flex-shrink-0 w-4 h-4 flex items-center justify-center">
+        <div className="text-muted-foreground opacity-50 flex-shrink-0 w-3.5 h-3.5 flex items-center justify-center">
           {icon}
         </div>
       </div>
-      <div className="mt-2 flex items-baseline gap-2">
+      <div className="mt-1.5 flex items-baseline gap-1.5">
         <span className={cn(
-          "text-lg font-bold",
+          "text-base font-bold",
           trend === 'up' && !negative ? 'text-green-500' : '',
-          trend === 'down' && negative ? 'text-red-500' : '' // e.g. Max Drawdown
+          trend === 'down' && negative ? 'text-red-500' : ''
         )}>
           {value}
         </span>

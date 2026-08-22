@@ -23,6 +23,8 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
+import { useTradeStore } from '@/lib/store';
+
 const tradeSchema = z.object({
   account: z.string().min(1, 'Account is required'),
   symbol: z.string().min(1, 'Symbol is required'),
@@ -62,6 +64,7 @@ const EMOTIONS = ['Calm', 'Confident', 'Anxious', 'Fearful', 'Greedy', 'Frustrat
 
 export default function AddTradePage() {
   const router = useRouter();
+  const { accounts, addTrade } = useTradeStore();
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
   
@@ -148,8 +151,40 @@ export default function AddTradePage() {
   };
 
   const onSubmit = (data: TradeFormValues) => {
-    console.log({ ...data, tags, calculatedValues });
-    toast.success('Trade saved successfully');
+    const matchedAccount = accounts.find(a => a.name === data.account || a.id === data.account) || accounts[0];
+    
+    addTrade({
+      account_id: matchedAccount?.id,
+      symbol: data.symbol.toUpperCase(),
+      direction: data.direction.toLowerCase() as 'long' | 'short',
+      entry_date: `${data.entryDate}T${data.entryTime}:00Z`,
+      exit_date: data.exitDate ? `${data.exitDate}T${data.exitTime || '00:00'}:00Z` : undefined,
+      entry_price: data.entryPrice,
+      exit_price: data.exitPrice,
+      lot_size: data.lotSize,
+      strategy: data.strategy,
+      stop_loss: data.stopLoss,
+      take_profit: data.takeProfit,
+      risk_amount: data.riskAmount,
+      commission: data.commission,
+      swap: data.swap,
+      pnl: calculatedValues.pnl,
+      net_pnl: calculatedValues.netPnl,
+      r_multiple: calculatedValues.rMultiple,
+      status: data.exitPrice ? 'closed' : 'open',
+      confidence: data.confidence,
+      emotion_before: data.emotionBefore?.toLowerCase() as any,
+      emotion_during: data.emotionDuring?.toLowerCase() as any,
+      emotion_after: data.emotionAfter?.toLowerCase() as any,
+      entry_reason: data.entryReason,
+      exit_reason: data.exitReason,
+      what_went_well: data.wentWell,
+      what_went_wrong: data.wentWrong,
+      lesson_learned: data.lesson,
+      tags: tags,
+    });
+
+    toast.success(`Trade for ${data.symbol.toUpperCase()} saved!`);
     router.push('/trades');
   };
 
@@ -177,9 +212,9 @@ export default function AddTradePage() {
                   <Select onValueChange={(val) => setValue('account', val as string)}>
                     <SelectTrigger><SelectValue placeholder="Select account" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="FTMO 100k">FTMO 100k</SelectItem>
-                      <SelectItem value="Personal">Personal</SelectItem>
-                      <SelectItem value="FundedNext">FundedNext</SelectItem>
+                      {accounts.map(acc => (
+                        <SelectItem key={acc.id} value={acc.name}>{acc.name}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   {form.formState.errors.account && <p className="text-sm text-red-500">{form.formState.errors.account.message}</p>}

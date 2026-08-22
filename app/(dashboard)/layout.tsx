@@ -110,11 +110,16 @@ function SidebarContent({ pathname, onNav }: { pathname: string; onNav?: () => v
   );
 }
 
+import { useTradeStore } from "@/lib/store";
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { accounts, selectedAccountId, setSelectedAccountId } = useTradeStore();
+
+  const activeAccount = accounts.find((a) => a.id === selectedAccountId);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -162,15 +167,31 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <DropdownMenuTrigger>
                 <div className="hidden sm:flex items-center gap-2 h-8 px-3 text-xs rounded-md border border-border hover:bg-muted transition-colors cursor-pointer">
                   <Wallet className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span>Main Account</span>
+                  <span>{activeAccount ? activeAccount.name : accounts.length > 0 ? "All Accounts" : "No Accounts"}</span>
                   <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
                 </div>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel className="text-xs text-muted-foreground">Accounts</DropdownMenuLabel>
-                <DropdownMenuItem>FTMO 100K</DropdownMenuItem>
-                <DropdownMenuItem>Personal Account</DropdownMenuItem>
-                <DropdownMenuItem>Demo Account</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setSelectedAccountId("all")} className="cursor-pointer">
+                  All Accounts
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                {accounts.map((acc) => (
+                  <DropdownMenuItem
+                    key={acc.id}
+                    onClick={() => setSelectedAccountId(acc.id)}
+                    className="cursor-pointer flex justify-between"
+                  >
+                    <span>{acc.name}</span>
+                    {selectedAccountId === acc.id && <span className="text-primary font-bold ml-2">✓</span>}
+                  </DropdownMenuItem>
+                ))}
+                {accounts.length === 0 && (
+                  <DropdownMenuItem onClick={() => router.push("/accounts")} className="text-muted-foreground text-xs">
+                    + Add an account
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
 

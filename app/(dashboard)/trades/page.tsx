@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { 
-  Search, Plus, Eye, Pencil, Trash2, FilterX, ArrowUpDown, ChevronLeft, ChevronRight, ArrowUp, ArrowDown
+  Search, Plus, Eye, Trash2, FilterX, ArrowUpDown, ChevronLeft, ChevronRight, ArrowUp, ArrowDown
 } from 'lucide-react';
 import { 
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow 
@@ -26,28 +26,13 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Card, CardContent } from '@/components/ui/card';
-import { cn } from '@/lib/utils';
-
-// Demo Data
-const DEMO_TRADES = [
-  { id: '1', date: 'Aug 22, 2026', account: 'FTMO 100k', symbol: 'EURUSD', direction: 'Long', entry: 1.1050, exit: 1.1080, lot: 5.0, pnl: 1500, rMultiple: 2.5, strategy: 'Breakout', status: 'Closed' },
-  { id: '2', date: 'Aug 21, 2026', account: 'Personal', symbol: 'GBPUSD', direction: 'Short', entry: 1.2500, exit: 1.2450, lot: 2.0, pnl: 1000, rMultiple: 1.5, strategy: 'Trend Follow', status: 'Closed' },
-  { id: '3', date: 'Aug 20, 2026', account: 'FTMO 100k', symbol: 'XAUUSD', direction: 'Long', entry: 1950.5, exit: 1945.0, lot: 1.0, pnl: -550, rMultiple: -1.0, strategy: 'Reversal', status: 'Closed' },
-  { id: '4', date: 'Aug 19, 2026', account: 'FundedNext', symbol: 'NASDAQ', direction: 'Short', entry: 15200, exit: 15100, lot: 0.5, pnl: 1000, rMultiple: 2.0, strategy: 'Breakout', status: 'Closed' },
-  { id: '5', date: 'Aug 18, 2026', account: 'Personal', symbol: 'EURUSD', direction: 'Short', entry: 1.0950, exit: null, lot: 3.0, pnl: 300, rMultiple: 0.5, strategy: 'Trend Follow', status: 'Open' },
-  { id: '6', date: 'Aug 17, 2026', account: 'FTMO 100k', symbol: 'GBPUSD', direction: 'Long', entry: 1.2600, exit: 1.2550, lot: 4.0, pnl: -2000, rMultiple: -1.0, strategy: 'Breakout', status: 'Closed' },
-  { id: '7', date: 'Aug 16, 2026', account: 'Personal', symbol: 'XAUUSD', direction: 'Short', entry: 1920.0, exit: 1910.0, lot: 2.0, pnl: 2000, rMultiple: 3.0, strategy: 'Reversal', status: 'Closed' },
-  { id: '8', date: 'Aug 15, 2026', account: 'FundedNext', symbol: 'NASDAQ', direction: 'Long', entry: 14800, exit: 14950, lot: 1.0, pnl: 3000, rMultiple: 4.0, strategy: 'Trend Follow', status: 'Closed' },
-  { id: '9', date: 'Aug 14, 2026', account: 'FTMO 100k', symbol: 'EURUSD', direction: 'Long', entry: 1.1100, exit: 1.1090, lot: 5.0, pnl: -500, rMultiple: -0.5, strategy: 'Scalp', status: 'Closed' },
-  { id: '10', date: 'Aug 13, 2026', account: 'Personal', symbol: 'GBPUSD', direction: 'Short', entry: 1.2700, exit: 1.2600, lot: 2.0, pnl: 2000, rMultiple: 2.0, strategy: 'Breakout', status: 'Closed' },
-  { id: '11', date: 'Aug 12, 2026', account: 'FundedNext', symbol: 'XAUUSD', direction: 'Long', entry: 1900.0, exit: 1905.0, lot: 3.0, pnl: 1500, rMultiple: 1.5, strategy: 'Trend Follow', status: 'Closed' },
-  { id: '12', date: 'Aug 11, 2026', account: 'FTMO 100k', symbol: 'NASDAQ', direction: 'Short', entry: 15500, exit: 15550, lot: 0.5, pnl: -500, rMultiple: -1.0, strategy: 'Reversal', status: 'Closed' },
-  { id: '13', date: 'Aug 10, 2026', account: 'Personal', symbol: 'EURUSD', direction: 'Long', entry: 1.0800, exit: 1.0850, lot: 4.0, pnl: 2000, rMultiple: 2.5, strategy: 'Breakout', status: 'Closed' },
-  { id: '14', date: 'Aug 09, 2026', account: 'FTMO 100k', symbol: 'GBPUSD', direction: 'Short', entry: 1.2800, exit: 1.2800, lot: 3.0, pnl: 0, rMultiple: 0, strategy: 'Trend Follow', status: 'Closed' },
-  { id: '15', date: 'Aug 08, 2026', account: 'FundedNext', symbol: 'XAUUSD', direction: 'Long', entry: 1880.0, exit: 1880.0, lot: 2.0, pnl: 0, rMultiple: 0, strategy: 'Reversal', status: 'Cancelled' },
-];
+import { cn, formatCurrency } from '@/lib/utils';
+import { useTradeStore } from '@/lib/store';
+import { toast } from 'sonner';
 
 export default function TradesList() {
+  const { trades, accounts, deleteTrade, isLoaded } = useTradeStore();
+
   const [searchTerm, setSearchTerm] = useState('');
   const [accountFilter, setAccountFilter] = useState('All');
   const [symbolFilter, setSymbolFilter] = useState('All');
@@ -55,14 +40,21 @@ export default function TradesList() {
   const [directionFilter, setDirectionFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
   
-  const [sortConfig, setSortConfig] = useState({ key: 'date', direction: 'desc' });
+  const [sortConfig, setSortConfig] = useState({ key: 'entry_date', direction: 'desc' });
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  // Derive unique options
-  const accounts = ['All', ...Array.from(new Set(DEMO_TRADES.map(t => t.account)))];
-  const symbols = ['All', ...Array.from(new Set(DEMO_TRADES.map(t => t.symbol)))];
-  const strategies = ['All', ...Array.from(new Set(DEMO_TRADES.map(t => t.strategy)))];
+  // Account mapping
+  const accountMap = useMemo(() => {
+    const map = new Map<string, string>();
+    accounts.forEach(a => map.set(a.id, a.name));
+    return map;
+  }, [accounts]);
+
+  // Unique filter options
+  const accountNames = ['All', ...Array.from(new Set(accounts.map(a => a.name)))];
+  const symbols = ['All', ...Array.from(new Set(trades.map(t => t.symbol)))];
+  const strategies = ['All', ...Array.from(new Set(trades.map(t => t.strategy).filter(Boolean)))];
 
   const clearFilters = () => {
     setSearchTerm('');
@@ -83,33 +75,34 @@ export default function TradesList() {
   };
 
   const filteredTrades = useMemo(() => {
-    return DEMO_TRADES.filter(trade => {
+    return trades.filter(trade => {
+      const accName = accountMap.get(trade.account_id) || 'Unknown';
       const matchSearch = trade.symbol.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          trade.strategy.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchAccount = accountFilter === 'All' || trade.account === accountFilter;
+                          (trade.strategy && trade.strategy.toLowerCase().includes(searchTerm.toLowerCase()));
+      const matchAccount = accountFilter === 'All' || accName === accountFilter;
       const matchSymbol = symbolFilter === 'All' || trade.symbol === symbolFilter;
       const matchStrategy = strategyFilter === 'All' || trade.strategy === strategyFilter;
-      const matchDirection = directionFilter === 'All' || trade.direction === directionFilter;
-      const matchStatus = statusFilter === 'All' || trade.status === statusFilter;
+      const matchDirection = directionFilter === 'All' || trade.direction.toLowerCase() === directionFilter.toLowerCase();
+      const matchStatus = statusFilter === 'All' || trade.status.toLowerCase() === statusFilter.toLowerCase();
       return matchSearch && matchAccount && matchSymbol && matchStrategy && matchDirection && matchStatus;
-    }).sort((a, b) => {
-      // Very basic sort logic for demo
-      const valA = a[sortConfig.key as keyof typeof a];
-      const valB = b[sortConfig.key as keyof typeof b];
+    }).sort((a: any, b: any) => {
+      const valA = a[sortConfig.key];
+      const valB = b[sortConfig.key];
       if (valA === valB) return 0;
-      if (valA === null) return 1;
-      if (valB === null) return -1;
+      if (valA === undefined || valA === null) return 1;
+      if (valB === undefined || valB === null) return -1;
       
       const comparison = valA < valB ? -1 : 1;
       return sortConfig.direction === 'desc' ? -comparison : comparison;
     });
-  }, [searchTerm, accountFilter, symbolFilter, strategyFilter, directionFilter, statusFilter, sortConfig]);
+  }, [trades, accountMap, searchTerm, accountFilter, symbolFilter, strategyFilter, directionFilter, statusFilter, sortConfig]);
 
   const summary = useMemo(() => {
-    const closed = filteredTrades.filter(t => t.status === 'Closed' && t.pnl !== 0);
-    const wins = closed.filter(t => t.pnl > 0).length;
-    const totalPnl = filteredTrades.reduce((acc, t) => acc + t.pnl, 0);
-    const avgR = closed.length > 0 ? (closed.reduce((acc, t) => acc + t.rMultiple, 0) / closed.length).toFixed(2) : 0;
+    const closed = filteredTrades.filter(t => t.status === 'closed');
+    const wins = closed.filter(t => (t.net_pnl ?? 0) > 0).length;
+    const totalPnl = filteredTrades.reduce((acc, t) => acc + (t.net_pnl ?? t.pnl ?? 0), 0);
+    const rValues = closed.filter(t => t.r_multiple !== undefined).map(t => t.r_multiple!);
+    const avgR = rValues.length > 0 ? (rValues.reduce((acc, v) => acc + v, 0) / rValues.length).toFixed(2) : '0.00';
     const winRate = closed.length > 0 ? Math.round((wins / closed.length) * 100) : 0;
     
     return { count: filteredTrades.length, totalPnl, winRate, avgR };
@@ -124,10 +117,26 @@ export default function TradesList() {
     return sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3 ml-1" /> : <ArrowDown className="w-3 h-3 ml-1" />;
   };
 
+  const handleDelete = (id: string, symbol: string) => {
+    deleteTrade(id);
+    toast.success(`Trade ${symbol} deleted`);
+  };
+
+  if (!isLoaded) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <p className="text-muted-foreground animate-pulse">Loading trades...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto p-4 md:p-6 lg:p-8">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h1 className="text-3xl font-bold tracking-tight">Trades</h1>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Trades</h1>
+          <p className="text-muted-foreground">Manage and filter your entire trading history.</p>
+        </div>
         <Link href="/trades/new">
           <Button><Plus className="w-4 h-4 mr-2" /> Add Trade</Button>
         </Link>
@@ -147,28 +156,28 @@ export default function TradesList() {
               />
             </div>
             
-            <Select value={accountFilter} onValueChange={setAccountFilter}>
+            <Select value={accountFilter} onValueChange={(v) => v && setAccountFilter(v)}>
               <SelectTrigger><SelectValue placeholder="Account" /></SelectTrigger>
               <SelectContent>
-                {accounts.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+                {accountNames.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
               </SelectContent>
             </Select>
 
-            <Select value={symbolFilter} onValueChange={setSymbolFilter}>
+            <Select value={symbolFilter} onValueChange={(v) => v && setSymbolFilter(v)}>
               <SelectTrigger><SelectValue placeholder="Symbol" /></SelectTrigger>
               <SelectContent>
                 {symbols.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
               </SelectContent>
             </Select>
 
-            <Select value={strategyFilter} onValueChange={setStrategyFilter}>
+            <Select value={strategyFilter} onValueChange={(v) => v && setStrategyFilter(v)}>
               <SelectTrigger><SelectValue placeholder="Strategy" /></SelectTrigger>
               <SelectContent>
                 {strategies.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
               </SelectContent>
             </Select>
 
-            <Select value={directionFilter} onValueChange={setDirectionFilter}>
+            <Select value={directionFilter} onValueChange={(v) => v && setDirectionFilter(v)}>
               <SelectTrigger><SelectValue placeholder="Direction" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="All">All Directions</SelectItem>
@@ -177,7 +186,7 @@ export default function TradesList() {
               </SelectContent>
             </Select>
 
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <Select value={statusFilter} onValueChange={(v) => v && setStatusFilter(v)}>
               <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="All">All Statuses</SelectItem>
@@ -204,9 +213,9 @@ export default function TradesList() {
         </Card>
         <Card>
           <CardContent className="p-4 flex flex-col">
-            <span className="text-sm font-medium text-muted-foreground">Total P&L</span>
+            <span className="text-sm font-medium text-muted-foreground">Total P&amp;L</span>
             <span className={cn("text-2xl font-bold", summary.totalPnl > 0 ? "text-green-500" : summary.totalPnl < 0 ? "text-red-500" : "")}>
-              {summary.totalPnl > 0 ? '+' : ''}{summary.totalPnl.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}
+              {summary.totalPnl > 0 ? '+' : ''}{formatCurrency(summary.totalPnl)}
             </span>
           </CardContent>
         </Card>
@@ -218,39 +227,41 @@ export default function TradesList() {
         </Card>
         <Card>
           <CardContent className="p-4 flex flex-col">
-            <span className="text-sm font-medium text-muted-foreground">Avg R</span>
-            <span className={cn("text-2xl font-bold", Number(summary.avgR) > 0 ? "text-green-500" : Number(summary.avgR) < 0 ? "text-red-500" : "")}>
-              {Number(summary.avgR) > 0 ? '+' : ''}{summary.avgR}R
+            <span className="text-sm font-medium text-muted-foreground">Avg R-Multiple</span>
+            <span className={cn("text-2xl font-bold", parseFloat(summary.avgR) > 0 ? "text-green-500" : "")}>
+              {parseFloat(summary.avgR) > 0 ? '+' : ''}{summary.avgR}R
             </span>
           </CardContent>
         </Card>
       </div>
 
-      {/* Table */}
-      <div className="border rounded-md bg-card">
+      {/* Trade Table */}
+      <div className="rounded-md border bg-card overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort('date')}>
-                <div className="flex items-center">Date <SortIcon columnKey="date" /></div>
+              <TableHead className="cursor-pointer" onClick={() => handleSort('entry_date')}>
+                <div className="flex items-center">Date <SortIcon columnKey="entry_date" /></div>
               </TableHead>
-              <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort('account')}>
-                <div className="flex items-center">Account <SortIcon columnKey="account" /></div>
-              </TableHead>
-              <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort('symbol')}>
+              <TableHead>Account</TableHead>
+              <TableHead className="cursor-pointer" onClick={() => handleSort('symbol')}>
                 <div className="flex items-center">Symbol <SortIcon columnKey="symbol" /></div>
               </TableHead>
               <TableHead>Direction</TableHead>
-              <TableHead className="text-right">Entry</TableHead>
-              <TableHead className="text-right">Exit</TableHead>
-              <TableHead className="text-right cursor-pointer hover:bg-muted/50" onClick={() => handleSort('lot')}>
-                <div className="flex items-center justify-end">Lot <SortIcon columnKey="lot" /></div>
+              <TableHead className="cursor-pointer text-right" onClick={() => handleSort('entry_price')}>
+                <div className="flex items-center justify-end">Entry <SortIcon columnKey="entry_price" /></div>
               </TableHead>
-              <TableHead className="text-right cursor-pointer hover:bg-muted/50" onClick={() => handleSort('pnl')}>
-                <div className="flex items-center justify-end">P&L <SortIcon columnKey="pnl" /></div>
+              <TableHead className="cursor-pointer text-right" onClick={() => handleSort('exit_price')}>
+                <div className="flex items-center justify-end">Exit <SortIcon columnKey="exit_price" /></div>
               </TableHead>
-              <TableHead className="text-right cursor-pointer hover:bg-muted/50" onClick={() => handleSort('rMultiple')}>
-                <div className="flex items-center justify-end">R Mult <SortIcon columnKey="rMultiple" /></div>
+              <TableHead className="cursor-pointer text-right" onClick={() => handleSort('lot_size')}>
+                <div className="flex items-center justify-end">Lots <SortIcon columnKey="lot_size" /></div>
+              </TableHead>
+              <TableHead className="cursor-pointer text-right" onClick={() => handleSort('net_pnl')}>
+                <div className="flex items-center justify-end">P&amp;L <SortIcon columnKey="net_pnl" /></div>
+              </TableHead>
+              <TableHead className="cursor-pointer text-right" onClick={() => handleSort('r_multiple')}>
+                <div className="flex items-center justify-end">R <SortIcon columnKey="r_multiple" /></div>
               </TableHead>
               <TableHead>Strategy</TableHead>
               <TableHead>Status</TableHead>
@@ -260,78 +271,90 @@ export default function TradesList() {
           <TableBody>
             {paginatedTrades.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={12} className="text-center h-32 text-muted-foreground">
-                  No trades found matching your filters.
+                <TableCell colSpan={12} className="h-32 text-center text-muted-foreground">
+                  No trades found. {trades.length === 0 ? "You haven't logged any trades yet." : "Try adjusting your filters."}
                 </TableCell>
               </TableRow>
             ) : (
-              paginatedTrades.map((trade) => (
-                <TableRow key={trade.id} className="hover:bg-muted/50 cursor-default">
-                  <TableCell className="whitespace-nowrap">{trade.date}</TableCell>
-                  <TableCell>{trade.account}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2 font-medium">
-                      <div className={cn("w-2 h-2 rounded-full", trade.symbol.includes('USD') ? "bg-blue-500" : "bg-purple-500")} />
-                      {trade.symbol}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={trade.direction === 'Long' ? 'default' : 'secondary'} className={cn(
-                      trade.direction === 'Long' ? "bg-blue-500/10 text-blue-500 hover:bg-blue-500/20" : "bg-orange-500/10 text-orange-500 hover:bg-orange-500/20"
-                    )}>
-                      {trade.direction}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">{trade.entry}</TableCell>
-                  <TableCell className="text-right">{trade.exit || '-'}</TableCell>
-                  <TableCell className="text-right">{trade.lot}</TableCell>
-                  <TableCell className={cn("text-right font-medium", trade.pnl > 0 ? "text-green-500" : trade.pnl < 0 ? "text-red-500" : "")}>
-                    {trade.pnl > 0 ? '+' : ''}{trade.pnl.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}
-                  </TableCell>
-                  <TableCell className={cn("text-right font-medium", trade.rMultiple > 0 ? "text-green-500" : trade.rMultiple < 0 ? "text-red-500" : "")}>
-                    {trade.rMultiple > 0 ? '+' : ''}{trade.rMultiple}R
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{trade.strategy}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className={cn(
-                      trade.status === 'Open' && "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
-                      trade.status === 'Closed' && "bg-gray-500/10 text-gray-500 border-gray-500/20",
-                      trade.status === 'Cancelled' && "bg-red-500/10 text-red-500 border-red-500/20"
-                    )}>
-                      {trade.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end items-center gap-1">
-                      <Link href={`/trades/${trade.id}`}>
-                        <Button variant="ghost" size="icon" className="h-8 w-8"><Eye className="h-4 w-4" /></Button>
-                      </Link>
-                      <Link href={`/trades/${trade.id}/edit`}>
-                        <Button variant="ghost" size="icon" className="h-8 w-8"><Pencil className="h-4 w-4" /></Button>
-                      </Link>
-                      <AlertDialog>
-                        <AlertDialogTrigger>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-500/10"><Trash2 className="h-4 w-4" /></Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Delete Trade</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Are you sure you want to delete this trade? This action cannot be undone.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction className="bg-red-500 hover:bg-red-600">Delete</AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
+              paginatedTrades.map((trade) => {
+                const accName = accountMap.get(trade.account_id) || 'Account';
+                const pnlVal = trade.net_pnl ?? trade.pnl ?? 0;
+                return (
+                  <TableRow key={trade.id} className="hover:bg-muted/50 transition-colors">
+                    <TableCell className="font-medium whitespace-nowrap">
+                      {trade.entry_date ? trade.entry_date.slice(0, 10) : 'N/A'}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground whitespace-nowrap">
+                      {accName}
+                    </TableCell>
+                    <TableCell className="font-semibold">
+                      <div className="flex items-center gap-1.5">
+                        <span className={cn("w-2 h-2 rounded-full", pnlVal > 0 ? "bg-green-500" : pnlVal < 0 ? "bg-red-500" : "bg-muted-foreground")} />
+                        {trade.symbol}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={trade.direction === 'long' ? 'default' : 'outline'} className={cn(
+                        trade.direction === 'long' ? "bg-blue-500/10 text-blue-500 hover:bg-blue-500/20" : "bg-orange-500/10 text-orange-500 hover:bg-orange-500/20"
+                      )}>
+                        {trade.direction.toUpperCase()}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">{trade.entry_price}</TableCell>
+                    <TableCell className="text-right">{trade.exit_price || '-'}</TableCell>
+                    <TableCell className="text-right">{trade.lot_size}</TableCell>
+                    <TableCell className={cn("text-right font-medium", pnlVal > 0 ? "text-green-500" : pnlVal < 0 ? "text-red-500" : "")}>
+                      {pnlVal > 0 ? '+' : ''}{formatCurrency(pnlVal)}
+                    </TableCell>
+                    <TableCell className={cn("text-right font-medium", (trade.r_multiple ?? 0) > 0 ? "text-green-500" : (trade.r_multiple ?? 0) < 0 ? "text-red-500" : "")}>
+                      {(trade.r_multiple ?? 0) > 0 ? '+' : ''}{trade.r_multiple ?? 0}R
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{trade.strategy || 'Discretionary'}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={cn(
+                        trade.status === 'open' && "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
+                        trade.status === 'closed' && "bg-gray-500/10 text-gray-500 border-gray-500/20",
+                        trade.status === 'cancelled' && "bg-red-500/10 text-red-500 border-red-500/20"
+                      )}>
+                        {trade.status.toUpperCase()}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end items-center gap-1">
+                        <Link href={`/trades/${trade.id}`}>
+                          <Button variant="ghost" size="icon" className="h-8 w-8"><Eye className="h-4 w-4" /></Button>
+                        </Link>
+                        <AlertDialog>
+                          <AlertDialogTrigger>
+                            <div className="h-8 w-8 flex items-center justify-center rounded-md text-red-500 hover:text-red-600 hover:bg-red-500/10 cursor-pointer">
+                              <Trash2 className="h-4 w-4" />
+                            </div>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete Trade</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Are you sure you want to delete this {trade.symbol} trade? This action will update your account balance and cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction 
+                                className="bg-red-500 hover:bg-red-600"
+                                onClick={() => handleDelete(trade.id, trade.symbol)}
+                              >
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>

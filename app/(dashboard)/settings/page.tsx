@@ -1,20 +1,20 @@
 'use client';
 
-import React from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
-import { Slider } from '@/components/ui/slider';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { AlertTriangle, Upload, Download, Trash2, Key, CheckCircle2, ShieldAlert } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import React, { useState } from 'react';
+import { useTradeStore } from '@/lib/store';
+import { toast } from 'sonner';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 export default function SettingsPage() {
+  const { clearAllData, resetToDemoData } = useTradeStore();
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   return (
     <div className="space-y-6">
       <div>
@@ -313,22 +313,67 @@ export default function SettingsPage() {
             <Card className="border-red-500/20">
               <CardHeader>
                 <CardTitle className="text-red-500 flex items-center gap-2">
-                  <AlertTriangle className="w-5 h-5" /> Danger Zone
+                  <AlertTriangle className="w-5 h-5" /> Danger Zone &amp; Data Reset
                 </CardTitle>
-                <CardDescription>Irreversible actions related to your account data.</CardDescription>
+                <CardDescription>Actions related to your saved accounts, trades, goals, and journal.</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between pb-4 border-b border-border">
+                  <div>
+                    <h4 className="font-medium text-sm">Reset to Demo Data</h4>
+                    <p className="text-sm text-muted-foreground mt-1">Restore sample accounts, trades, and journaling data.</p>
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      resetToDemoData();
+                      toast.success("TradeVault reset to demo data!");
+                    }}
+                  >
+                    Restore Demo Data
+                  </Button>
+                </div>
                 <div className="flex items-center justify-between">
                   <div>
-                    <h4 className="font-medium text-sm">Delete All Trade Data</h4>
-                    <p className="text-sm text-muted-foreground mt-1">This will permanently delete all trades and journal entries.</p>
+                    <h4 className="font-medium text-sm text-red-500">Delete All Data (Wipe Everything)</h4>
+                    <p className="text-sm text-muted-foreground mt-1">This will permanently delete all accounts, trades, goals, and journal entries.</p>
                   </div>
-                  <Button variant="destructive" className="gap-2">
-                    <Trash2 className="w-4 h-4" /> Delete Data
+                  <Button 
+                    variant="destructive" 
+                    className="gap-2"
+                    onClick={() => setShowClearConfirm(true)}
+                  >
+                    <Trash2 className="w-4 h-4" /> Wipe All Data
                   </Button>
                 </div>
               </CardContent>
             </Card>
+
+            <Dialog open={showClearConfirm} onOpenChange={setShowClearConfirm}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle className="text-red-500">Wipe All TradeVault Data?</DialogTitle>
+                  <DialogDescription>
+                    This will permanently clear all accounts, trade logs, calendar entries, analytics, and journal notes from your browser storage.
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter className="flex gap-2 justify-end mt-4">
+                  <Button variant="outline" onClick={() => setShowClearConfirm(false)}>
+                    Cancel
+                  </Button>
+                  <Button 
+                    variant="destructive" 
+                    onClick={() => {
+                      clearAllData();
+                      setShowClearConfirm(false);
+                      toast.success("All data has been wiped.");
+                    }}
+                  >
+                    Yes, Wipe Everything
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </TabsContent>
 
           {/* AI & Integrations Tab */}

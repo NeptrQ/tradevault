@@ -19,6 +19,8 @@ export const metadata: Metadata = {
   description: "Professional trading journal and performance management platform",
 };
 
+import { StoreProvider } from "@/lib/store";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -27,10 +29,12 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <TooltipProvider>
-          {children}
-          <Toaster position="top-right" richColors />
-        </TooltipProvider>
+        <StoreProvider>
+          <TooltipProvider>
+            {children}
+            <Toaster position="top-right" richColors />
+          </TooltipProvider>
+        </StoreProvider>
       </body>
     </html>
   );
