@@ -15,8 +15,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Build trading context
-    const tradeSummary = Array.isArray(trades)
+    // Build context
+    const tradeSummary = Array.isArray(trades) && trades.length > 0
       ? trades.slice(0, 15).map((t: any) => ({
           symbol: t.symbol,
           direction: t.direction,
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
         }))
       : [];
 
-    const accountSummary = Array.isArray(accounts)
+    const accountSummary = Array.isArray(accounts) && accounts.length > 0
       ? accounts.map((a: any) => ({
           name: a.name,
           type: a.type,
@@ -42,84 +42,65 @@ export async function POST(req: NextRequest) {
         }))
       : [];
 
-    const systemInstruction = `You are TradeVault's Elite AI Trading Coach and Quantitative Risk Manager.
-You provide insightful, direct, actionable, and empathetic trading advice based on the user's real trading journal data.
+    const systemContext = `[TRADEVAULT TRADER CONTEXT]
+- Accounts (${accountSummary.length}): ${JSON.stringify(accountSummary)}
+- Stats: Total P&L: $${stats?.total_pnl?.toFixed(2) || '0'}, Win Rate: ${stats?.win_rate?.toFixed(1) || '0'}%, Profit Factor: ${stats?.profit_factor === Infinity ? 'N/A' : (stats?.profit_factor?.toFixed(2) || '0')}, Avg R: ${stats?.avg_r?.toFixed(2) || '0'}R, Max Drawdown: ${stats?.max_drawdown?.toFixed(1) || '0'}%
+- Recent Trades (${tradeSummary.length}): ${JSON.stringify(tradeSummary)}
+[INSTRUCTIONS]: You are TradeVault AI, an elite Quantitative Trading Coach & Prop Firm Risk Manager. Provide direct, tactical, empathetic, and formatted advice with bold headings, clean bullet points, and realistic guidance referencing their actual portfolio stats.`;
 
-User's Trading Overview:
-- Accounts: ${JSON.stringify(accountSummary)}
-- Performance Stats: ${JSON.stringify(stats || {})}
-- Recent Trade History (last 15): ${JSON.stringify(tradeSummary)}
+    const contents: any[] = [];
 
-Guidelines:
-1. Speak like a veteran prop firm risk manager / mentor: encouraging, realistic, disciplined, and focused on risk management, expectancy, and psychological composure.
-2. Reference their actual trades, win rate, P&L, and strategies when relevant.
-3. If they ask for setup reviews or psychology tips, provide concrete 3-step action items.
-4. Keep answers concise, clear, and well-structured using markdown bullet points and bold highlights.`;
-
-    // Map conversation messages to Gemini format
-    const contents = (messages || []).map((m: { role: string; content: string }) => ({
-      role: m.role === 'ai' || m.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: m.content }],
-    }));
-
-    // If contents is empty or doesn't have a user message at the end
-    if (contents.length === 0) {
-      contents.push({ role: 'user', parts: [{ text: 'Give me a summary of my trading performance and top recommendations.' }] });
-    }
-
-    // Call Gemini API (try gemini-2.5-flash or gemini-2.0-flash or gemini-1.5-flash)
-    const modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
-    let aiText = '';
-    let lastError = null;
-
-    for (const model of modelsToTry) {
-      try {
-        const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              systemInstruction: {
-                parts: [{ text: systemInstruction }],
-              },
-              contents: contents,
-              generationConfig: {
-                temperature: 0.7,
-                maxOutputTokens: 1000,
-              },
-            }),
-          }
-        );
-
-        if (response.ok) {
-          const data = await response.json();
-          aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-          if (aiText) break;
-        } else {
-          const errData = await response.text();
-          lastError = errData;
+    // Map conversation messages
+    if (Array.isArray(messages)) {
+      messages.forEach((m: { role: string; content: string }, index: number) => {
+        let text = m.content;
+        if (index === 0 && m.role === 'user') {
+          text = `${systemContext}\n\nUser Question: ${m.content}`;
         }
-      } catch (err) {
-        lastError = err;
-      }
+        contents.push({
+          role: m.role === 'ai' || m.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text }],
+        });
+      });
     }
 
-    if (!aiText) {
-      // If API key format was unique or model network failed, generate tailored coaching response
-      aiText = `Based on your recent trading log of ${tradeSummary.length} trades:
-- **Win Rate & Edge**: Your win rate is ${stats?.win_rate ? stats.win_rate.toFixed(1) + '%' : 'tracking well'}. Continue prioritizing high RR trades (minimum 1:2 R:R).
-- **Risk Discipline**: Ensure position sizing never exceeds 1% of account equity per trade to prevent drawdowns.
-- **Psychological Rule**: If you hit 2 consecutive losses, step away from the charts for 30 minutes to maintain peak emotional discipline.
-
-What specific setup or instrument would you like to deep-dive into next?`;
+    if (contents.length === 0) {
+      contents.push({
+        role: 'user',
+        parts: [{ text: `${systemContext}\n\nUser Question: Give me an executive review of my trading habits and 3 key recommendations.` }],
+      });
     }
 
-    return NextResponse.json({ reply: aiText });
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error('Gemini API fetch error:', response.status, errText);
+      return NextResponse.json(
+        { error: 'Gemini API call failed', details: errText },
+        { status: response.status }
+      );
+    }
+
+    const data = await response.json();
+    const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!replyText) {
+      return NextResponse.json(
+        { error: 'No response candidates returned from Gemini' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ reply: replyText });
   } catch (error: any) {
-    console.error('Error in /api/ai/chat:', error);
+    console.error('Error in /api/ai/chat route:', error);
     return NextResponse.json(
       { error: error.message || 'Internal Server Error' },
       { status: 500 }
