@@ -1,7 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
-import Link from 'next/link';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -9,21 +8,29 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ColorProgress } from '@/components/ui/color-progress';
 import { Input } from '@/components/ui/input';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
-import { Brain, RefreshCw, AlertTriangle, CheckCircle2, Target, TrendingUp, XCircle, ChevronRight, MessageSquare, Send, Sparkles } from 'lucide-react';
+import { Brain, RefreshCw, AlertTriangle, CheckCircle2, Target, TrendingUp, XCircle, Sparkles, Send, Bot, User, Trash2 } from 'lucide-react';
 import { useTradeStore } from '@/lib/store';
 import { generateSmartReview } from '@/lib/ai/smart-review';
 import { calculatePerformanceStats } from '@/lib/analytics/calculations';
 import { toast } from 'sonner';
 
+interface Message {
+  role: 'ai' | 'user';
+  content: string;
+}
+
 export default function AIReviewPage() {
   const { trades, accounts, isLoaded } = useTradeStore();
   const [activeTab, setActiveTab] = useState('smart');
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [prompt, setPrompt] = useState('');
-  const [aiChat, setAiChat] = useState<{ role: 'ai' | 'user'; message: string }[]>([
+  const [inputMessage, setInputMessage] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const [messages, setMessages] = useState<Message[]>([
     {
       role: 'ai',
-      message: 'Hello! I am your AI Trading Coach. Ask me anything about your current win rate, risk distribution, or how to overcome trading psychology obstacles.',
+      content: "Hello! I'm your Gemini-powered Trading Coach. I've analyzed your account rules, trade log, and metrics. How can I help you sharpen your edge today?",
     },
   ]);
 
@@ -31,45 +38,65 @@ export default function AIReviewPage() {
   const stats = useMemo(() => calculatePerformanceStats(closedTrades), [closedTrades]);
   const review = useMemo(() => generateSmartReview(trades, {}), [trades]);
 
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, isLoading]);
+
   const handleRefresh = () => {
     setIsRefreshing(true);
     setTimeout(() => {
       setIsRefreshing(false);
       toast.success('AI Review updated with your latest trades!');
-    }, 600);
+    }, 500);
   };
 
-  const handleAskAI = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!prompt.trim()) return;
+  const handleSendMessage = async (userText: string) => {
+    if (!userText.trim() || isLoading) return;
 
-    const userMsg = prompt.trim();
-    setPrompt('');
-    setAiChat((prev) => [...prev, { role: 'user', message: userMsg }]);
+    const newMessages: Message[] = [...messages, { role: 'user', content: userText.trim() }];
+    setMessages(newMessages);
+    setInputMessage('');
+    setIsLoading(true);
 
-    setTimeout(() => {
-      let aiResponse = "";
-      const lower = userMsg.toLowerCase();
+    try {
+      const res = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: newMessages,
+          trades: closedTrades,
+          accounts,
+          stats,
+        }),
+      });
 
-      if (lower.includes('win rate') || lower.includes('performance')) {
-        aiResponse = `Based on your ${closedTrades.length} logged trades, your current win rate is ${stats.win_rate.toFixed(1)}% with a Profit Factor of ${stats.profit_factor === Infinity ? 'N/A' : stats.profit_factor.toFixed(2)}. ${
-          stats.win_rate >= 50
-            ? 'Your edge is positive! Focus on letting winning trades reach at least 2R to maximize expectancy.'
-            : 'Focus on taking high-probability setups and cutting losing trades quickly to protect capital.'
-        }`;
-      } else if (lower.includes('risk') || lower.includes('loss')) {
-        aiResponse = `Your average win is $${stats.avg_win.toFixed(0)} versus an average loss of $${stats.avg_loss.toFixed(0)}. Always maintain a strict maximum 1-2% risk per position to safeguard your accounts against drawdowns.`;
-      } else if (lower.includes('strategy') || lower.includes('session')) {
-        aiResponse = `Your trading data shows your highest probability trades occur during the London and NY opens. Stick to your proven breakout setups and avoid overtrading in late session chop.`;
-      } else {
-        aiResponse = `Analyzing your portfolio of ${closedTrades.length} trades: Your overall discipline score is ${review.overall_score || 75}/100. To improve further, maintain consistent position sizing, record trade psychology in your journal, and take mandatory 15-minute breaks after any stop loss.`;
+      if (!res.ok) {
+        throw new Error('Failed to get AI response');
       }
 
-      setAiChat((prev) => [...prev, { role: 'ai', message: aiResponse }]);
-    }, 700);
+      const data = await res.json();
+      setMessages((prev) => [...prev, { role: 'ai', content: data.reply }]);
+    } catch (err: any) {
+      toast.error('AI chat error. Please check your connection.');
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'ai',
+          content: `I reviewed your ${closedTrades.length} trades:
+- **Win Rate**: ${stats.win_rate.toFixed(1)}%
+- **Expectancy**: $${stats.expectancy.toFixed(2)} per trade
+- **Key Recommendation**: Stick to maximum 1% risk per setup and never trade within 15 minutes of major macroeconomic news releases.`,
+        },
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  // Performance Profile benchmark data
   const performanceProfileData = useMemo(() => {
     return [
       { subject: 'Win Rate', A: Math.min(100, Math.round(stats.win_rate)), benchmark: 50 },
@@ -84,7 +111,7 @@ export default function AIReviewPage() {
   if (!isLoaded) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <p className="text-muted-foreground animate-pulse">Loading AI Review...</p>
+        <p className="text-muted-foreground animate-pulse">Loading AI Review &amp; Coach...</p>
       </div>
     );
   }
@@ -92,18 +119,25 @@ export default function AIReviewPage() {
   const strengths = review.insights.filter(i => i.type === 'success');
   const weaknesses = review.insights.filter(i => i.type === 'warning' || i.type === 'danger');
 
+  const suggestions = [
+    "📊 What is my strongest trading session and symbol?",
+    "⚠️ Analyze my repeated trading mistakes",
+    "🧠 How can I overcome fear of missing out (FOMO)?",
+    "🎯 Create a 3-step discipline plan for next week",
+  ];
+
   return (
     <div className="space-y-6 p-4 md:p-6 lg:p-8">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-3xl font-bold tracking-tight">AI Review</h1>
+            <h1 className="text-3xl font-bold tracking-tight">AI Review &amp; Coach</h1>
             <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20">
-              <Brain className="w-3 h-3 mr-1" /> Smart Coach Active
+              <Sparkles className="w-3 h-3 mr-1" /> Gemini 2.5 Active
             </Badge>
           </div>
           <p className="text-muted-foreground mt-1">
-            Real-time pattern analysis, psychological diagnostics, and performance scoring.
+            Real-time pattern analysis, statistical diagnostics, and Gemini conversational trading mentor.
           </p>
         </div>
         <Button variant="outline" className="gap-2" onClick={handleRefresh} disabled={isRefreshing}>
@@ -114,12 +148,15 @@ export default function AIReviewPage() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full max-w-md grid-cols-2 mb-6">
-          <TabsTrigger value="smart">Smart Review</TabsTrigger>
-          <TabsTrigger value="ai">AI Deep Dive Chat</TabsTrigger>
+          <TabsTrigger value="smart">Smart Review Dashboard</TabsTrigger>
+          <TabsTrigger value="ai" className="relative">
+            Gemini Coach Chat
+            <span className="ml-1.5 flex h-2 w-2 rounded-full bg-green-500" />
+          </TabsTrigger>
         </TabsList>
 
+        {/* TAB 1: Smart Review */}
         <TabsContent value="smart" className="space-y-6">
-          {/* Overall Score Section */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Card className="md:col-span-1 bg-card border-border flex flex-col justify-center items-center p-6 text-center">
               <div className="relative w-32 h-32 flex items-center justify-center mb-4">
@@ -168,7 +205,7 @@ export default function AIReviewPage() {
                 <CardContent>
                   <div className="text-2xl font-bold text-yellow-500 mb-2">{review.psychology_score || 68}/100</div>
                   <ColorProgress value={review.psychology_score || 68} className="h-2" indicatorColor="bg-yellow-500" />
-                  <p className="text-xs text-muted-foreground mt-2">Emotional control &amp; post-loss composure</p>
+                  <p className="text-xs text-muted-foreground mt-2">Emotional control &amp; composure</p>
                 </CardContent>
               </Card>
               <Card>
@@ -206,7 +243,7 @@ export default function AIReviewPage() {
                   <>
                     <div className="bg-background rounded-lg p-3 border border-border">
                       <h4 className="font-medium text-sm flex items-center gap-2">
-                        <Target className="w-4 h-4 text-green-500" /> Solid Trade Management
+                        <Target className="w-4 h-4 text-green-500" /> Strong Reward-to-Risk
                       </h4>
                       <p className="text-sm text-muted-foreground mt-1">Average winning trades exceed average losses, protecting long-term equity.</p>
                     </div>
@@ -313,55 +350,109 @@ export default function AIReviewPage() {
           </div>
         </TabsContent>
 
+        {/* TAB 2: AI Deep Dive Chat */}
         <TabsContent value="ai">
-          <Card className="max-w-3xl mx-auto">
-            <CardHeader>
+          <Card className="max-w-4xl mx-auto border shadow-lg">
+            <CardHeader className="flex flex-row items-center justify-between border-b pb-4">
               <div className="flex items-center gap-3">
                 <div className="bg-primary/10 p-2.5 rounded-xl text-primary">
-                  <Sparkles className="w-6 h-6" />
+                  <Bot className="w-6 h-6" />
                 </div>
                 <div>
-                  <CardTitle className="text-xl">AI Trading Coach</CardTitle>
+                  <CardTitle className="text-xl flex items-center gap-2">
+                    Gemini AI Trading Mentor
+                    <Badge variant="outline" className="text-xs text-green-500 border-green-500/30">Live Context</Badge>
+                  </CardTitle>
                   <CardDescription>
-                    Ask questions about your win rate, emotional discipline, or strategy optimization.
+                    Trained on your real trades, profit factor, risk parameters, and emotions.
                   </CardDescription>
                 </div>
               </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:text-red-500"
+                onClick={() => setMessages([
+                  {
+                    role: 'ai',
+                    content: "Chat reset. How can I help you analyze your trading today?",
+                  },
+                ])}
+              >
+                <Trash2 className="w-4 h-4 mr-1" /> Clear Chat
+              </Button>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="h-[360px] overflow-y-auto space-y-4 p-4 rounded-lg bg-muted/30 border">
-                {aiChat.map((msg, i) => (
+
+            <CardContent className="p-4 md:p-6 space-y-4">
+              {/* Chat history */}
+              <div className="h-[460px] overflow-y-auto space-y-4 p-4 rounded-xl bg-muted/20 border">
+                {messages.map((msg, i) => (
                   <div
                     key={i}
                     className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
                     {msg.role === 'ai' && (
-                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-primary">
+                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-primary border">
                         <Brain className="w-4 h-4" />
                       </div>
                     )}
                     <div
-                      className={`p-3.5 rounded-lg max-w-[80%] text-sm ${
+                      className={`p-4 rounded-2xl max-w-[85%] text-sm leading-relaxed whitespace-pre-wrap ${
                         msg.role === 'user'
-                          ? 'bg-primary text-primary-foreground ml-auto'
-                          : 'bg-card border text-card-foreground shadow-sm'
+                          ? 'bg-primary text-primary-foreground ml-auto rounded-br-none shadow-md'
+                          : 'bg-card border text-card-foreground shadow-sm rounded-bl-none'
                       }`}
                     >
-                      {msg.message}
+                      {msg.content}
                     </div>
+                    {msg.role === 'user' && (
+                      <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center shrink-0 text-foreground border">
+                        <User className="w-4 h-4" />
+                      </div>
+                    )}
                   </div>
+                ))}
+
+                {isLoading && (
+                  <div className="flex gap-3 items-center text-muted-foreground text-sm p-2 animate-pulse">
+                    <Brain className="w-4 h-4 animate-spin text-primary" />
+                    <span>Gemini Coach is analyzing your trading records...</span>
+                  </div>
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+
+              {/* Suggestions */}
+              <div className="flex flex-wrap gap-2 pt-1">
+                {suggestions.map((s, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => handleSendMessage(s)}
+                    className="text-xs bg-muted hover:bg-primary/10 hover:text-primary transition-colors border px-3 py-1.5 rounded-full text-muted-foreground text-left"
+                  >
+                    {s}
+                  </button>
                 ))}
               </div>
 
-              <form onSubmit={handleAskAI} className="flex gap-2">
+              {/* Chat Input */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleSendMessage(inputMessage);
+                }}
+                className="flex gap-2 pt-2"
+              >
                 <Input
-                  placeholder="e.g. How can I improve my win rate on Gold? Or how do I stop revenge trading?"
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                  className="flex-1"
+                  placeholder="Ask Gemini Coach about your risk, win rate, or trading psychology..."
+                  value={inputMessage}
+                  onChange={(e) => setInputMessage(e.target.value)}
+                  disabled={isLoading}
+                  className="flex-1 h-11 text-sm"
                 />
-                <Button type="submit">
-                  <Send className="w-4 h-4 mr-2" /> Ask Coach
+                <Button type="submit" disabled={isLoading || !inputMessage.trim()} className="h-11 px-5">
+                  <Send className="w-4 h-4 mr-2" /> Send
                 </Button>
               </form>
             </CardContent>
