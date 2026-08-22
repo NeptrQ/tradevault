@@ -182,144 +182,9 @@ export const INITIAL_TRADES: Trade[] = [
     r_multiple: 1.5,
     strategy: "Breakout",
     status: "closed",
-    emotion_before: "focused",
-    emotion_during: "calm",
-    emotion_after: "confident",
-    confidence: 8,
-    entry_reason: "Opening bell breakdown below premarket low",
     tags: ["Indices", "NY Open"],
     screenshots: [],
     created_at: formatDateStr(5),
-  },
-  {
-    id: "t5",
-    user_id: "user-1",
-    account_id: "1",
-    symbol: "NASDAQ",
-    direction: "long",
-    entry_date: formatDateStr(7),
-    exit_date: formatDateStr(7),
-    entry_price: 18200,
-    exit_price: 18140,
-    lot_size: 0.8,
-    stop_loss: 18140,
-    take_profit: 18350,
-    risk_amount: 480,
-    risk_percent: 0.48,
-    planned_rr: 2.5,
-    pnl: -480,
-    net_pnl: -495,
-    commission: 15,
-    r_multiple: -1.0,
-    strategy: "Scalp",
-    status: "closed",
-    tags: ["NQ", "Loss"],
-    screenshots: [],
-    created_at: formatDateStr(7),
-  },
-  {
-    id: "t6",
-    user_id: "user-1",
-    account_id: "2",
-    symbol: "EURUSD",
-    direction: "short",
-    entry_date: formatDateStr(4),
-    exit_date: formatDateStr(4),
-    entry_price: 1.0890,
-    exit_price: 1.0920,
-    lot_size: 1.0,
-    stop_loss: 1.0920,
-    take_profit: 1.0820,
-    risk_amount: 300,
-    risk_percent: 1.2,
-    planned_rr: 2.3,
-    pnl: -300,
-    net_pnl: -310,
-    commission: 10,
-    r_multiple: -1.0,
-    strategy: "Reversal",
-    status: "closed",
-    tags: ["Personal", "Loss"],
-    screenshots: [],
-    created_at: formatDateStr(4),
-  },
-  {
-    id: "t7",
-    user_id: "user-1",
-    account_id: "2",
-    symbol: "GBPUSD",
-    direction: "long",
-    entry_date: formatDateStr(8),
-    exit_date: formatDateStr(8),
-    entry_price: 1.2600,
-    exit_price: 1.2545,
-    lot_size: 1.0,
-    stop_loss: 1.2545,
-    take_profit: 1.2720,
-    risk_amount: 550,
-    risk_percent: 2.2,
-    planned_rr: 2.1,
-    pnl: -550,
-    net_pnl: -560,
-    commission: 10,
-    r_multiple: -1.0,
-    strategy: "Trend Follow",
-    status: "closed",
-    tags: ["Personal"],
-    screenshots: [],
-    created_at: formatDateStr(8),
-  },
-  {
-    id: "t8",
-    user_id: "user-1",
-    account_id: "3",
-    symbol: "EURUSD",
-    direction: "long",
-    entry_date: formatDateStr(2),
-    exit_date: formatDateStr(2),
-    entry_price: 1.0820,
-    exit_price: 1.0880,
-    lot_size: 1.0,
-    stop_loss: 1.0790,
-    take_profit: 1.0900,
-    risk_amount: 300,
-    risk_percent: 3.0,
-    planned_rr: 2.6,
-    pnl: 600,
-    net_pnl: 590,
-    commission: 10,
-    r_multiple: 2.0,
-    strategy: "Breakout",
-    status: "closed",
-    tags: ["Demo", "Tester"],
-    screenshots: [],
-    created_at: formatDateStr(2),
-  },
-  {
-    id: "t9",
-    user_id: "user-1",
-    account_id: "3",
-    symbol: "XAUUSD",
-    direction: "long",
-    entry_date: formatDateStr(6),
-    exit_date: formatDateStr(6),
-    entry_price: 2390,
-    exit_price: 2402,
-    lot_size: 0.5,
-    stop_loss: 2382,
-    take_profit: 2410,
-    risk_amount: 400,
-    risk_percent: 4.0,
-    planned_rr: 2.5,
-    pnl: 600,
-    net_pnl: 590,
-    commission: 10,
-    r_multiple: 1.5,
-    strategy: "Scalp",
-    status: "closed",
-    tags: ["Demo"],
-    screenshots: [],
-    created_at: formatDateStr(6),
   },
 ]
 
@@ -339,36 +204,6 @@ export const INITIAL_GOALS: Goal[] = [
     description: "Hit 10% target on FTMO Challenge",
     created_at: formatDateStr(30),
   },
-  {
-    id: "g2",
-    user_id: "user-1",
-    account_id: "1",
-    title: "Max Drawdown Buffer",
-    type: "drawdown",
-    target_value: 10000,
-    current_value: 1500,
-    period: "monthly",
-    start_date: formatDateStr(30).slice(0, 10),
-    end_date: formatDateStr(-1).slice(0, 10),
-    status: "active",
-    description: "Stay below 5% max drawdown",
-    created_at: formatDateStr(30),
-  },
-  {
-    id: "g3",
-    user_id: "user-1",
-    account_id: "1",
-    title: "Trade Journaling Discipline",
-    type: "journaling",
-    target_value: 20,
-    current_value: 18,
-    period: "weekly",
-    start_date: formatDateStr(7).slice(0, 10),
-    end_date: formatDateStr(-1).slice(0, 10),
-    status: "active",
-    description: "Journal emotions & lessons on every trade",
-    created_at: formatDateStr(7),
-  },
 ]
 
 export const INITIAL_JOURNAL: JournalEntry[] = [
@@ -382,20 +217,9 @@ export const INITIAL_JOURNAL: JournalEntry[] = [
     entry_date: formatDateStr(1).slice(0, 10),
     created_at: formatDateStr(1),
   },
-  {
-    id: "j2",
-    user_id: "user-1",
-    title: "Post-CPI Review & Revenge Trade Reflection",
-    content: "Took an impulsive reversal short on GBPUSD right before CPI. Lost 1R. Lesson: stay away from screens 15m before news.",
-    mood: "bad",
-    tags: ["Psychology", "News", "Mistake"],
-    entry_date: formatDateStr(2).slice(0, 10),
-    created_at: formatDateStr(2),
-  },
 ]
 
-const STORAGE_KEY = "tradevault_store_v2"
-const INIT_FLAG_KEY = "tradevault_initialized_v2"
+const STORAGE_KEY = "tradevault_store_v3"
 
 interface StoreContextType {
   accounts: Account[]
@@ -433,54 +257,56 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     async function loadData() {
       try {
-        const isInitialized = localStorage.getItem(INIT_FLAG_KEY)
+        const { data: { user } } = await supabase.auth.getUser()
         const saved = localStorage.getItem(STORAGE_KEY)
 
-        if (saved) {
-          const parsed = JSON.parse(saved)
-          setAccounts(parsed.accounts || [])
-          setTrades(parsed.trades || [])
-          setGoals(parsed.goals || [])
-          setJournalEntries(parsed.journalEntries || [])
-          setSelectedAccountId(parsed.selectedAccountId || "all")
-        } else if (isInitialized) {
-          // User already initialized but data was emptied
-          setAccounts([])
-          setTrades([])
-          setGoals([])
-          setJournalEntries([])
-          setSelectedAccountId("all")
-        } else {
-          // First time initialization with demo data
-          setAccounts(INITIAL_ACCOUNTS)
-          setTrades(INITIAL_TRADES)
-          setGoals(INITIAL_GOALS)
-          setJournalEntries(INITIAL_JOURNAL)
-          setSelectedAccountId("1")
-          localStorage.setItem(INIT_FLAG_KEY, "true")
-        }
-
-        // Try syncing from Supabase if user is authenticated
-        const { data: { user } } = await supabase.auth.getUser()
         if (user) {
+          // If user is authenticated, query Supabase database as the primary source of truth
           const [accRes, tradeRes, goalRes, journalRes] = await Promise.all([
-            supabase.from('accounts').select('*'),
-            supabase.from('trades').select('*'),
-            supabase.from('goals').select('*'),
-            supabase.from('journal_entries').select('*'),
+            supabase.from('accounts').select('*').eq('user_id', user.id),
+            supabase.from('trades').select('*').eq('user_id', user.id),
+            supabase.from('goals').select('*').eq('user_id', user.id),
+            supabase.from('journal_entries').select('*').eq('user_id', user.id),
           ])
 
-          if (accRes.data && accRes.data.length > 0) {
+          // If database has records, use database records.
+          if (accRes.data) {
             setAccounts(accRes.data)
+            setTrades(tradeRes.data || [])
+            setGoals(goalRes.data || [])
+            setJournalEntries(journalRes.data || [])
+            setSelectedAccountId(accRes.data[0]?.id || "all")
+          } else if (saved) {
+            const parsed = JSON.parse(saved)
+            setAccounts(parsed.accounts ?? [])
+            setTrades(parsed.trades ?? [])
+            setGoals(parsed.goals ?? [])
+            setJournalEntries(parsed.journalEntries ?? [])
+            setSelectedAccountId(parsed.selectedAccountId ?? "all")
+          } else {
+            // New user, clean empty state
+            setAccounts([])
+            setTrades([])
+            setGoals([])
+            setJournalEntries([])
+            setSelectedAccountId("all")
           }
-          if (tradeRes.data && tradeRes.data.length > 0) {
-            setTrades(tradeRes.data)
-          }
-          if (goalRes.data && goalRes.data.length > 0) {
-            setGoals(goalRes.data)
-          }
-          if (journalRes.data && journalRes.data.length > 0) {
-            setJournalEntries(journalRes.data)
+        } else {
+          // Unauthenticated guest user
+          if (saved) {
+            const parsed = JSON.parse(saved)
+            setAccounts(parsed.accounts ?? [])
+            setTrades(parsed.trades ?? [])
+            setGoals(parsed.goals ?? [])
+            setJournalEntries(parsed.journalEntries ?? [])
+            setSelectedAccountId(parsed.selectedAccountId ?? "all")
+          } else {
+            // First time guest visit demo data
+            setAccounts(INITIAL_ACCOUNTS)
+            setTrades(INITIAL_TRADES)
+            setGoals(INITIAL_GOALS)
+            setJournalEntries(INITIAL_JOURNAL)
+            setSelectedAccountId("1")
           }
         }
       } catch (e) {
@@ -493,11 +319,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     loadData()
   }, [])
 
-  // Persist state to localStorage
+  // Persist state to localStorage on any state change
   useEffect(() => {
     if (!isLoaded) return
     try {
-      localStorage.setItem(INIT_FLAG_KEY, "true")
       localStorage.setItem(
         STORAGE_KEY,
         JSON.stringify({
@@ -514,8 +339,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [accounts, trades, goals, journalEntries, selectedAccountId, isLoaded])
 
   const addAccount = (data: Partial<Account> & { name: string; initial_balance: number }): Account => {
+    const newId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString()
     const newAcc: Account = {
-      id: Date.now().toString(),
+      id: newId,
       user_id: "user-1",
       name: data.name,
       type: data.type || "prop_firm",
@@ -526,15 +352,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       profit_target: data.profit_target,
       max_total_loss: data.max_total_loss,
       daily_loss_limit: data.daily_loss_limit,
+      max_trades_per_day: data.max_trades_per_day || 5,
       status: "active",
       created_at: new Date().toISOString(),
       ...data,
     }
+
     setAccounts((prev) => [newAcc, ...prev])
+    setSelectedAccountId(newAcc.id)
 
     // Asynchronously insert to Supabase
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) {
+        newAcc.user_id = user.id
         supabase.from('accounts').insert({
           id: newAcc.id,
           user_id: user.id,
@@ -557,10 +387,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const updateAccount = (id: string, updates: Partial<Account>) => {
     setAccounts((prev) => prev.map((a) => (a.id === id ? { ...a, ...updates } : a)))
+    supabase.from('accounts').update(updates).eq('id', id).catch(err => console.warn('Supabase account update note:', err))
   }
 
   const deleteAccount = (id: string) => {
-    // Cascade delete locally: remove the account AND all associated trades and goals
+    // Delete account and all linked trades and goals locally immediately
     setAccounts((prev) => prev.filter((a) => a.id !== id))
     setTrades((prev) => prev.filter((t) => t.account_id !== id))
     setGoals((prev) => prev.filter((g) => g.account_id !== id))
@@ -569,15 +400,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setSelectedAccountId("all")
     }
 
-    // Asynchronously delete from Supabase
+    // Permanently delete from Supabase database
     supabase.from('accounts').delete().eq('id', id).catch(err => console.warn('Supabase account delete note:', err))
     supabase.from('trades').delete().eq('account_id', id).catch(err => console.warn('Supabase trades delete note:', err))
     supabase.from('goals').delete().eq('account_id', id).catch(err => console.warn('Supabase goals delete note:', err))
   }
 
   const addTrade = (data: Partial<Trade> & { symbol: string; direction: 'long' | 'short'; lot_size: number; entry_price: number }): Trade => {
+    const newId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString()
     const newTrade: Trade = {
-      id: Date.now().toString(),
+      id: newId,
       user_id: "user-1",
       account_id: data.account_id || (accounts[0]?.id ?? "1"),
       symbol: data.symbol,
@@ -594,14 +426,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       created_at: new Date().toISOString(),
       ...data,
     }
+
     setTrades((prev) => [newTrade, ...prev])
 
-    // Update account balance locally
+    // Update account balance
     if (newTrade.net_pnl && newTrade.account_id) {
       setAccounts((prev) =>
         prev.map((acc) =>
           acc.id === newTrade.account_id
-            ? { ...acc, current_balance: acc.current_balance + (newTrade.net_pnl ?? 0) }
+            ? { ...acc, current_balance: (acc.current_balance || acc.initial_balance) + (newTrade.net_pnl ?? 0) }
             : acc
         )
       )
@@ -610,6 +443,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     // Asynchronously insert to Supabase
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) {
+        newTrade.user_id = user.id
         supabase.from('trades').insert({
           id: newTrade.id,
           user_id: user.id,
@@ -654,8 +488,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }
 
   const addGoal = (data: Partial<Goal> & { title: string; target_value: number; type: any }): Goal => {
+    const newId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString()
     const newGoal: Goal = {
-      id: Date.now().toString(),
+      id: newId,
       user_id: "user-1",
       account_id: data.account_id,
       title: data.title,
@@ -669,10 +504,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       created_at: new Date().toISOString(),
       ...data,
     }
+
     setGoals((prev) => [newGoal, ...prev])
 
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) {
+        newGoal.user_id = user.id
         supabase.from('goals').insert({
           id: newGoal.id,
           user_id: user.id,
@@ -698,8 +535,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }
 
   const addJournalEntry = (data: Partial<JournalEntry> & { title: string; content: string }): JournalEntry => {
+    const newId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString()
     const newEntry: JournalEntry = {
-      id: Date.now().toString(),
+      id: newId,
       user_id: "user-1",
       title: data.title,
       content: data.content,
@@ -709,10 +547,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       created_at: new Date().toISOString(),
       ...data,
     }
+
     setJournalEntries((prev) => [newEntry, ...prev])
 
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) {
+        newEntry.user_id = user.id
         supabase.from('journal_entries').insert({
           id: newEntry.id,
           user_id: user.id,
@@ -739,7 +579,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setGoals(INITIAL_GOALS)
     setJournalEntries(INITIAL_JOURNAL)
     setSelectedAccountId("1")
-    localStorage.setItem(INIT_FLAG_KEY, "true")
   }
 
   const clearAllData = () => {
@@ -748,7 +587,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setGoals([])
     setJournalEntries([])
     setSelectedAccountId("all")
-    localStorage.setItem(INIT_FLAG_KEY, "true")
   }
 
   return (
