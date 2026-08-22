@@ -1,7 +1,8 @@
 "use client"
 
-import React, { createContext, useContext, useState, useEffect } from "react"
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react"
 import { Account, Trade, Goal, JournalEntry } from "@/types"
+import { createClient } from "@/lib/supabase/client"
 
 export const INITIAL_ACCOUNTS: Account[] = [
   {
@@ -393,7 +394,8 @@ export const INITIAL_JOURNAL: JournalEntry[] = [
   },
 ]
 
-const STORAGE_KEY = "tradevault_store_v1"
+const STORAGE_KEY = "tradevault_store_v2"
+const INIT_FLAG_KEY = "tradevault_initialized_v2"
 
 interface StoreContextType {
   accounts: Account[]
@@ -425,41 +427,77 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([])
   const [selectedAccountId, setSelectedAccountId] = useState<string>("all")
   const [isLoaded, setIsLoaded] = useState(false)
+  const supabase = createClient()
 
-  // Load on mount
+  // Load state on mount
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY)
-      if (saved) {
-        const parsed = JSON.parse(saved)
-        setAccounts(parsed.accounts ?? [])
-        setTrades(parsed.trades ?? [])
-        setGoals(parsed.goals ?? [])
-        setJournalEntries(parsed.journalEntries ?? [])
-        setSelectedAccountId(parsed.selectedAccountId ?? "all")
-      } else {
-        // First time initialization with demo data
-        setAccounts(INITIAL_ACCOUNTS)
-        setTrades(INITIAL_TRADES)
-        setGoals(INITIAL_GOALS)
-        setJournalEntries(INITIAL_JOURNAL)
-        setSelectedAccountId("1")
+    async function loadData() {
+      try {
+        const isInitialized = localStorage.getItem(INIT_FLAG_KEY)
+        const saved = localStorage.getItem(STORAGE_KEY)
+
+        if (saved) {
+          const parsed = JSON.parse(saved)
+          setAccounts(parsed.accounts || [])
+          setTrades(parsed.trades || [])
+          setGoals(parsed.goals || [])
+          setJournalEntries(parsed.journalEntries || [])
+          setSelectedAccountId(parsed.selectedAccountId || "all")
+        } else if (isInitialized) {
+          // User already initialized but data was emptied
+          setAccounts([])
+          setTrades([])
+          setGoals([])
+          setJournalEntries([])
+          setSelectedAccountId("all")
+        } else {
+          // First time initialization with demo data
+          setAccounts(INITIAL_ACCOUNTS)
+          setTrades(INITIAL_TRADES)
+          setGoals(INITIAL_GOALS)
+          setJournalEntries(INITIAL_JOURNAL)
+          setSelectedAccountId("1")
+          localStorage.setItem(INIT_FLAG_KEY, "true")
+        }
+
+        // Try syncing from Supabase if user is authenticated
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          const [accRes, tradeRes, goalRes, journalRes] = await Promise.all([
+            supabase.from('accounts').select('*'),
+            supabase.from('trades').select('*'),
+            supabase.from('goals').select('*'),
+            supabase.from('journal_entries').select('*'),
+          ])
+
+          if (accRes.data && accRes.data.length > 0) {
+            setAccounts(accRes.data)
+          }
+          if (tradeRes.data && tradeRes.data.length > 0) {
+            setTrades(tradeRes.data)
+          }
+          if (goalRes.data && goalRes.data.length > 0) {
+            setGoals(goalRes.data)
+          }
+          if (journalRes.data && journalRes.data.length > 0) {
+            setJournalEntries(journalRes.data)
+          }
+        }
+      } catch (e) {
+        console.error("Failed to load TradeVault data", e)
+      } finally {
+        setIsLoaded(true)
       }
-    } catch (e) {
-      console.error("Failed to load TradeVault data from localStorage", e)
-      setAccounts(INITIAL_ACCOUNTS)
-      setTrades(INITIAL_TRADES)
-      setGoals(INITIAL_GOALS)
-      setJournalEntries(INITIAL_JOURNAL)
-    } finally {
-      setIsLoaded(true)
     }
+
+    loadData()
   }, [])
 
-  // Save changes
+  // Persist state to localStorage
   useEffect(() => {
     if (!isLoaded) return
     try {
+      localStorage.setItem(INIT_FLAG_KEY, "true")
       localStorage.setItem(
         STORAGE_KEY,
         JSON.stringify({
@@ -493,6 +531,27 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       ...data,
     }
     setAccounts((prev) => [newAcc, ...prev])
+
+    // Asynchronously insert to Supabase
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        supabase.from('accounts').insert({
+          id: newAcc.id,
+          user_id: user.id,
+          name: newAcc.name,
+          type: newAcc.type,
+          broker: newAcc.broker,
+          currency: newAcc.currency,
+          initial_balance: newAcc.initial_balance,
+          current_balance: newAcc.current_balance,
+          profit_target: newAcc.profit_target,
+          max_total_loss: newAcc.max_total_loss,
+          daily_loss_limit: newAcc.daily_loss_limit,
+          status: newAcc.status,
+        }).catch(err => console.warn('Supabase account insert note:', err))
+      }
+    })
+
     return newAcc
   }
 
@@ -501,7 +560,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }
 
   const deleteAccount = (id: string) => {
-    // Cascade delete: remove the account AND all associated trades and goals
+    // Cascade delete locally: remove the account AND all associated trades and goals
     setAccounts((prev) => prev.filter((a) => a.id !== id))
     setTrades((prev) => prev.filter((t) => t.account_id !== id))
     setGoals((prev) => prev.filter((g) => g.account_id !== id))
@@ -509,6 +568,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (selectedAccountId === id) {
       setSelectedAccountId("all")
     }
+
+    // Asynchronously delete from Supabase
+    supabase.from('accounts').delete().eq('id', id).catch(err => console.warn('Supabase account delete note:', err))
+    supabase.from('trades').delete().eq('account_id', id).catch(err => console.warn('Supabase trades delete note:', err))
+    supabase.from('goals').delete().eq('account_id', id).catch(err => console.warn('Supabase goals delete note:', err))
   }
 
   const addTrade = (data: Partial<Trade> & { symbol: string; direction: 'long' | 'short'; lot_size: number; entry_price: number }): Trade => {
@@ -532,7 +596,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
     setTrades((prev) => [newTrade, ...prev])
 
-    // Update account balance
+    // Update account balance locally
     if (newTrade.net_pnl && newTrade.account_id) {
       setAccounts((prev) =>
         prev.map((acc) =>
@@ -542,11 +606,51 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         )
       )
     }
+
+    // Asynchronously insert to Supabase
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        supabase.from('trades').insert({
+          id: newTrade.id,
+          user_id: user.id,
+          account_id: newTrade.account_id,
+          symbol: newTrade.symbol,
+          direction: newTrade.direction,
+          entry_date: newTrade.entry_date,
+          exit_date: newTrade.exit_date,
+          entry_price: newTrade.entry_price,
+          exit_price: newTrade.exit_price,
+          lot_size: newTrade.lot_size,
+          stop_loss: newTrade.stop_loss,
+          take_profit: newTrade.take_profit,
+          risk_amount: newTrade.risk_amount,
+          commission: newTrade.commission,
+          swap: newTrade.swap,
+          pnl: newTrade.pnl,
+          net_pnl: newTrade.net_pnl,
+          r_multiple: newTrade.r_multiple,
+          strategy: newTrade.strategy,
+          status: newTrade.status,
+          emotion_before: newTrade.emotion_before,
+          emotion_during: newTrade.emotion_during,
+          emotion_after: newTrade.emotion_after,
+          confidence: newTrade.confidence,
+          entry_reason: newTrade.entry_reason,
+          exit_reason: newTrade.exit_reason,
+          what_went_well: newTrade.what_went_well,
+          what_went_wrong: newTrade.what_went_wrong,
+          lesson_learned: newTrade.lesson_learned,
+          tags: newTrade.tags,
+        }).catch(err => console.warn('Supabase trade insert note:', err))
+      }
+    })
+
     return newTrade
   }
 
   const deleteTrade = (id: string) => {
     setTrades((prev) => prev.filter((t) => t.id !== id))
+    supabase.from('trades').delete().eq('id', id).catch(err => console.warn('Supabase trade delete note:', err))
   }
 
   const addGoal = (data: Partial<Goal> & { title: string; target_value: number; type: any }): Goal => {
@@ -566,11 +670,31 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       ...data,
     }
     setGoals((prev) => [newGoal, ...prev])
+
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        supabase.from('goals').insert({
+          id: newGoal.id,
+          user_id: user.id,
+          account_id: newGoal.account_id,
+          title: newGoal.title,
+          type: newGoal.type,
+          target_value: newGoal.target_value,
+          current_value: newGoal.current_value,
+          period: newGoal.period,
+          start_date: newGoal.start_date,
+          end_date: newGoal.end_date,
+          status: newGoal.status,
+        }).catch(err => console.warn('Supabase goal insert note:', err))
+      }
+    })
+
     return newGoal
   }
 
   const deleteGoal = (id: string) => {
     setGoals((prev) => prev.filter((g) => g.id !== id))
+    supabase.from('goals').delete().eq('id', id).catch(err => console.warn('Supabase goal delete note:', err))
   }
 
   const addJournalEntry = (data: Partial<JournalEntry> & { title: string; content: string }): JournalEntry => {
@@ -586,11 +710,27 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       ...data,
     }
     setJournalEntries((prev) => [newEntry, ...prev])
+
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        supabase.from('journal_entries').insert({
+          id: newEntry.id,
+          user_id: user.id,
+          title: newEntry.title,
+          content: newEntry.content,
+          mood: newEntry.mood,
+          tags: newEntry.tags,
+          entry_date: newEntry.entry_date,
+        }).catch(err => console.warn('Supabase journal insert note:', err))
+      }
+    })
+
     return newEntry
   }
 
   const deleteJournalEntry = (id: string) => {
     setJournalEntries((prev) => prev.filter((j) => j.id !== id))
+    supabase.from('journal_entries').delete().eq('id', id).catch(err => console.warn('Supabase journal delete note:', err))
   }
 
   const resetToDemoData = () => {
@@ -599,6 +739,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setGoals(INITIAL_GOALS)
     setJournalEntries(INITIAL_JOURNAL)
     setSelectedAccountId("1")
+    localStorage.setItem(INIT_FLAG_KEY, "true")
   }
 
   const clearAllData = () => {
@@ -607,6 +748,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setGoals([])
     setJournalEntries([])
     setSelectedAccountId("all")
+    localStorage.setItem(INIT_FLAG_KEY, "true")
   }
 
   return (
