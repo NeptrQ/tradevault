@@ -120,12 +120,10 @@ export default function GoalsPage() {
           <h1 className="text-3xl font-bold tracking-tight">Goals</h1>
           <p className="text-muted-foreground">Track and manage your trading objectives.</p>
         </div>
+        <Button onClick={() => setIsDialogOpen(true)}>
+          <Plus className="mr-2 h-4 w-4" /> New Goal
+        </Button>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" /> New Goal
-            </Button>
-          </DialogTrigger>
           <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
               <DialogTitle>Create New Goal</DialogTitle>

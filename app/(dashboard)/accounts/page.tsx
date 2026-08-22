@@ -84,10 +84,8 @@ export default function AccountsPage() {
           <p className="text-muted-foreground">Manage your trading accounts and evaluation challenges.</p>
         </div>
         
+        <Button onClick={() => setIsSheetOpen(true)}><Plus className="mr-2 h-4 w-4" /> Add Account</Button>
         <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
-          <SheetTrigger>
-            <Button><Plus className="mr-2 h-4 w-4" /> Add Account</Button>
-          </SheetTrigger>
           <SheetContent className="sm:max-w-[425px] overflow-y-auto">
             <SheetHeader>
               <SheetTitle>Add New Account</SheetTitle>
@@ -205,10 +203,9 @@ export default function AccountsPage() {
                   </div>
                   <DropdownMenu>
                     <DropdownMenuTrigger>
-                      <Button variant="ghost" className="h-8 w-8 p-0">
-                        <span className="sr-only">Open menu</span>
+                      <div className="h-8 w-8 p-0 flex items-center justify-center rounded-md hover:bg-muted transition-colors cursor-pointer">
                         <MoreHorizontal className="h-4 w-4" />
-                      </Button>
+                      </div>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuLabel>Actions</DropdownMenuLabel>

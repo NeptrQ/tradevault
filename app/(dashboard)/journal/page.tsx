@@ -98,12 +98,10 @@ export default function JournalPage() {
           <p className="text-muted-foreground">Document your thoughts, emotions, and trade reviews.</p>
         </div>
         
+        <Button onClick={() => setIsSheetOpen(true)}>
+          <Plus className="mr-2 h-4 w-4" /> New Entry
+        </Button>
         <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
-          <SheetTrigger>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" /> New Entry
-            </Button>
-          </SheetTrigger>
           <SheetContent className="sm:max-w-[540px] overflow-y-auto">
             <SheetHeader>
               <SheetTitle>New Journal Entry</SheetTitle>

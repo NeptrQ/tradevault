@@ -138,14 +138,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className="flex-1 md:ml-[240px] flex flex-col min-h-screen">
         {/* Top bar */}
         <header className="sticky top-0 z-40 flex h-16 items-center gap-4 border-b border-border bg-card px-6">
-          {/* Mobile menu */}
+          {/* Mobile menu button - outside Sheet to avoid button nesting */}
+          <button
+            className="md:hidden h-9 w-9 flex items-center justify-center rounded-md hover:bg-muted transition-colors"
+            onClick={() => setMobileOpen(true)}
+          >
+            <Menu className="h-5 w-5" />
+            <span className="sr-only">Toggle menu</span>
+          </button>
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-            <SheetTrigger>
-              <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setMobileOpen(true)}>
-                <Menu className="h-5 w-5" />
-                <span className="sr-only">Toggle menu</span>
-              </Button>
-            </SheetTrigger>
             <SheetContent side="left" className="w-[240px] p-0 border-r border-border">
               <SidebarContent pathname={pathname} onNav={() => setMobileOpen(false)} />
             </SheetContent>
@@ -159,11 +160,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {/* Account selector */}
             <DropdownMenu>
               <DropdownMenuTrigger>
-                <Button variant="outline" size="sm" className="hidden sm:flex gap-2 h-8 text-xs">
+                <div className="hidden sm:flex items-center gap-2 h-8 px-3 text-xs rounded-md border border-border hover:bg-muted transition-colors cursor-pointer">
                   <Wallet className="h-3.5 w-3.5 text-muted-foreground" />
                   <span>Main Account</span>
                   <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                </Button>
+                </div>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel className="text-xs text-muted-foreground">Accounts</DropdownMenuLabel>
@@ -174,20 +175,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </DropdownMenu>
 
             {/* Notifications */}
-            <Button variant="ghost" size="icon" className="relative h-8 w-8">
+            <button className="relative h-8 w-8 flex items-center justify-center rounded-md hover:bg-muted transition-colors">
               <Bell className="h-4 w-4 text-muted-foreground" />
               <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-red-500" />
-            </Button>
+            </button>
 
             {/* User dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger>
-                <Button variant="ghost" size="icon" className="rounded-full h-8 w-8">
+                <div className="flex items-center justify-center rounded-full h-8 w-8 cursor-pointer hover:opacity-80 transition-opacity">
                   <Avatar className="h-8 w-8">
                     <AvatarImage src="" alt="Avatar" />
                     <AvatarFallback className="text-xs bg-primary/20 text-primary">TV</AvatarFallback>
                   </Avatar>
-                </Button>
+                </div>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-56" align="end">
                 <DropdownMenuLabel>

@@ -1,11 +1,11 @@
--- TradeVault Database Schema
+-- TradeVault Database Schema (Safe to run multiple times)
 -- Run this in your Supabase SQL Editor
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- ACCOUNTS
+-- TABLES
 -- ─────────────────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS accounts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -25,9 +25,6 @@ CREATE TABLE IF NOT EXISTS accounts (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- ─────────────────────────────────────────────────────────────────────────────
--- TRADES
--- ─────────────────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS trades (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
@@ -51,9 +48,9 @@ CREATE TABLE IF NOT EXISTS trades (
   r_multiple DECIMAL(5,2),
   strategy TEXT,
   status TEXT DEFAULT 'open' CHECK (status IN ('open', 'closed', 'cancelled')),
-  emotion_before TEXT CHECK (emotion_before IN ('calm', 'confident', 'anxious', 'fearful', 'greedy', 'frustrated', 'euphoric', 'bored', 'focused', 'impulsive')),
-  emotion_during TEXT CHECK (emotion_during IN ('calm', 'confident', 'anxious', 'fearful', 'greedy', 'frustrated', 'euphoric', 'bored', 'focused', 'impulsive')),
-  emotion_after TEXT CHECK (emotion_after IN ('calm', 'confident', 'anxious', 'fearful', 'greedy', 'frustrated', 'euphoric', 'bored', 'focused', 'impulsive')),
+  emotion_before TEXT,
+  emotion_during TEXT,
+  emotion_after TEXT,
   confidence INT CHECK (confidence BETWEEN 1 AND 10),
   entry_reason TEXT,
   exit_reason TEXT,
@@ -66,44 +63,35 @@ CREATE TABLE IF NOT EXISTS trades (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- ─────────────────────────────────────────────────────────────────────────────
--- GOALS
--- ─────────────────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS goals (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
   account_id UUID REFERENCES accounts(id) ON DELETE SET NULL,
   title TEXT NOT NULL,
-  type TEXT NOT NULL CHECK (type IN ('profit', 'drawdown', 'risk', 'trades', 'journaling', 'behavior')),
+  type TEXT NOT NULL,
   target_value DECIMAL(15,2) NOT NULL,
   current_value DECIMAL(15,2) DEFAULT 0,
-  period TEXT CHECK (period IN ('daily', 'weekly', 'monthly', 'custom')),
+  period TEXT,
   start_date DATE NOT NULL,
   end_date DATE NOT NULL,
-  status TEXT DEFAULT 'active' CHECK (status IN ('active', 'completed', 'failed')),
+  status TEXT DEFAULT 'active',
   description TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- ─────────────────────────────────────────────────────────────────────────────
--- JOURNAL ENTRIES
--- ─────────────────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS journal_entries (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
   title TEXT NOT NULL,
   content TEXT NOT NULL,
-  mood TEXT CHECK (mood IN ('great', 'good', 'neutral', 'bad', 'terrible')),
+  mood TEXT,
   tags TEXT[] DEFAULT '{}',
   entry_date DATE NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- ─────────────────────────────────────────────────────────────────────────────
--- USER SETTINGS
--- ─────────────────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS user_settings (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE UNIQUE NOT NULL,
@@ -134,31 +122,52 @@ ALTER TABLE goals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE journal_entries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_settings ENABLE ROW LEVEL SECURITY;
 
--- Accounts policies
+-- Drop existing policies first (safe to run multiple times)
+DROP POLICY IF EXISTS "Users can view own accounts" ON accounts;
+DROP POLICY IF EXISTS "Users can insert own accounts" ON accounts;
+DROP POLICY IF EXISTS "Users can update own accounts" ON accounts;
+DROP POLICY IF EXISTS "Users can delete own accounts" ON accounts;
+
+DROP POLICY IF EXISTS "Users can view own trades" ON trades;
+DROP POLICY IF EXISTS "Users can insert own trades" ON trades;
+DROP POLICY IF EXISTS "Users can update own trades" ON trades;
+DROP POLICY IF EXISTS "Users can delete own trades" ON trades;
+
+DROP POLICY IF EXISTS "Users can view own goals" ON goals;
+DROP POLICY IF EXISTS "Users can insert own goals" ON goals;
+DROP POLICY IF EXISTS "Users can update own goals" ON goals;
+DROP POLICY IF EXISTS "Users can delete own goals" ON goals;
+
+DROP POLICY IF EXISTS "Users can view own journal" ON journal_entries;
+DROP POLICY IF EXISTS "Users can insert own journal" ON journal_entries;
+DROP POLICY IF EXISTS "Users can update own journal" ON journal_entries;
+DROP POLICY IF EXISTS "Users can delete own journal" ON journal_entries;
+
+DROP POLICY IF EXISTS "Users can view own settings" ON user_settings;
+DROP POLICY IF EXISTS "Users can insert own settings" ON user_settings;
+DROP POLICY IF EXISTS "Users can update own settings" ON user_settings;
+
+-- Recreate all policies
 CREATE POLICY "Users can view own accounts" ON accounts FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "Users can insert own accounts" ON accounts FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Users can update own accounts" ON accounts FOR UPDATE USING (auth.uid() = user_id);
 CREATE POLICY "Users can delete own accounts" ON accounts FOR DELETE USING (auth.uid() = user_id);
 
--- Trades policies
 CREATE POLICY "Users can view own trades" ON trades FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "Users can insert own trades" ON trades FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Users can update own trades" ON trades FOR UPDATE USING (auth.uid() = user_id);
 CREATE POLICY "Users can delete own trades" ON trades FOR DELETE USING (auth.uid() = user_id);
 
--- Goals policies
 CREATE POLICY "Users can view own goals" ON goals FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "Users can insert own goals" ON goals FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Users can update own goals" ON goals FOR UPDATE USING (auth.uid() = user_id);
 CREATE POLICY "Users can delete own goals" ON goals FOR DELETE USING (auth.uid() = user_id);
 
--- Journal policies
 CREATE POLICY "Users can view own journal" ON journal_entries FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "Users can insert own journal" ON journal_entries FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Users can update own journal" ON journal_entries FOR UPDATE USING (auth.uid() = user_id);
 CREATE POLICY "Users can delete own journal" ON journal_entries FOR DELETE USING (auth.uid() = user_id);
 
--- Settings policies
 CREATE POLICY "Users can view own settings" ON user_settings FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "Users can insert own settings" ON user_settings FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Users can update own settings" ON user_settings FOR UPDATE USING (auth.uid() = user_id);
@@ -177,7 +186,7 @@ CREATE INDEX IF NOT EXISTS journal_user_id_idx ON journal_entries(user_id);
 CREATE INDEX IF NOT EXISTS journal_entry_date_idx ON journal_entries(entry_date DESC);
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- TRIGGER: auto-update updated_at
+-- TRIGGERS
 -- ─────────────────────────────────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION update_updated_at()
 RETURNS TRIGGER AS $$
@@ -187,15 +196,19 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS accounts_updated_at ON accounts;
+DROP TRIGGER IF EXISTS trades_updated_at ON trades;
+DROP TRIGGER IF EXISTS goals_updated_at ON goals;
+DROP TRIGGER IF EXISTS journal_updated_at ON journal_entries;
+DROP TRIGGER IF EXISTS settings_updated_at ON user_settings;
+
 CREATE TRIGGER accounts_updated_at BEFORE UPDATE ON accounts FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 CREATE TRIGGER trades_updated_at BEFORE UPDATE ON trades FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 CREATE TRIGGER goals_updated_at BEFORE UPDATE ON goals FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 CREATE TRIGGER journal_updated_at BEFORE UPDATE ON journal_entries FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 CREATE TRIGGER settings_updated_at BEFORE UPDATE ON user_settings FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
--- ─────────────────────────────────────────────────────────────────────────────
--- TRIGGER: auto-create user settings on signup
--- ─────────────────────────────────────────────────────────────────────────────
+-- Auto-create user settings on signup
 CREATE OR REPLACE FUNCTION create_user_settings()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -206,6 +219,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION create_user_settings();
