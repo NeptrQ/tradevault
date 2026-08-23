@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ColorProgress } from '@/components/ui/color-progress';
 import { Input } from '@/components/ui/input';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
-import { Brain, RefreshCw, AlertTriangle, CheckCircle2, Target, TrendingUp, XCircle, Sparkles, Send, Bot, User, Trash2 } from 'lucide-react';
+import { Brain, RefreshCw, AlertTriangle, CheckCircle2, Target, TrendingUp, XCircle, Sparkles, Send, Bot, User, Trash2, Key, ShieldCheck } from 'lucide-react';
 import { useTradeStore } from '@/lib/store';
 import { generateSmartReview } from '@/lib/ai/smart-review';
 import { calculatePerformanceStats } from '@/lib/analytics/calculations';
@@ -20,17 +20,19 @@ interface Message {
 }
 
 export default function AIReviewPage() {
-  const { trades, accounts, isLoaded } = useTradeStore();
+  const { trades, accounts, preferences, updatePreferences, isLoaded } = useTradeStore();
   const [activeTab, setActiveTab] = useState('smart');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [customKeyInput, setCustomKeyInput] = useState('');
+  const [showKeyInput, setShowKeyInput] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'ai',
-      content: "Hello! I'm your Gemini-powered Trading Coach. I've analyzed your account rules, trade log, and metrics. How can I help you sharpen your edge today?",
+      content: "Hello! I'm your Gemini-powered Trading Coach & Risk Mentor. I analyze your trade log, emotional patterns, profit factor, and account rules. What would you like to review today?",
     },
   ]);
 
@@ -54,6 +56,13 @@ export default function AIReviewPage() {
     }, 500);
   };
 
+  const handleSaveApiKey = () => {
+    if (!customKeyInput.trim()) return;
+    updatePreferences({ gemini_api_key: customKeyInput.trim() });
+    setShowKeyInput(false);
+    toast.success('Gemini API Key saved!');
+  };
+
   const handleSendMessage = async (userText: string) => {
     if (!userText.trim() || isLoading) return;
 
@@ -62,6 +71,14 @@ export default function AIReviewPage() {
     setInputMessage('');
     setIsLoading(true);
 
+    const activeApiKey =
+      preferences.gemini_api_key ||
+      (typeof window !== 'undefined' ? localStorage.getItem('tradevault_gemini_api_key') : null) ||
+      process.env.NEXT_PUBLIC_GEMINI_API_KEY ||
+      '';
+
+    // 1. Try Server API Route first
+    let aiReply = '';
     try {
       const res = await fetch('/api/ai/chat', {
         method: 'POST',
@@ -71,30 +88,69 @@ export default function AIReviewPage() {
           trades: closedTrades,
           accounts,
           stats,
+          apiKey: activeApiKey,
         }),
       });
 
-      if (!res.ok) {
-        throw new Error('Failed to get AI response');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.reply) {
+          aiReply = data.reply;
+        }
       }
+    } catch (serverErr) {
+      console.warn('Server /api/ai/chat error, attempting direct Gemini fallback:', serverErr);
+    }
 
-      const data = await res.json();
-      setMessages((prev) => [...prev, { role: 'ai', content: data.reply }]);
-    } catch (err: any) {
-      toast.error('AI chat error. Please check your connection.');
+    // 2. Direct client-side Gemini fallback if server route failed
+    if (!aiReply && activeApiKey) {
+      try {
+        const directSystem = `You are TradeVault AI, an elite Quantitative Trading Coach & Prop Firm Risk Manager.
+Trader Portfolio Context:
+- Accounts: ${accounts.length} active (${accounts.map(a => `${a.name}: $${a.current_balance}`).join(', ')})
+- Stats: Win Rate: ${stats.win_rate.toFixed(1)}%, Total PnL: $${stats.total_pnl.toFixed(2)}, Profit Factor: ${stats.profit_factor === Infinity ? 'N/A' : stats.profit_factor.toFixed(2)}, Avg R: ${stats.avg_r.toFixed(2)}R, Drawdown: ${stats.max_drawdown.toFixed(1)}%
+- Recent Trades: ${JSON.stringify(closedTrades.slice(0, 15).map(t => ({ s: t.symbol, d: t.direction, pnl: t.net_pnl, r: t.r_multiple, st: t.strategy })))}
+Provide clear, structured coaching with bold headers and actionable bullet points.`;
+
+        const directRes = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${activeApiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [
+                {
+                  role: 'user',
+                  parts: [{ text: `${directSystem}\n\nUser Question: ${userText}` }],
+                },
+              ],
+            }),
+          }
+        );
+
+        if (directRes.ok) {
+          const directData = await directRes.json();
+          aiReply = directData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        }
+      } catch (clientErr) {
+        console.error('Direct Gemini fetch error:', clientErr);
+      }
+    }
+
+    if (aiReply) {
+      setMessages((prev) => [...prev, { role: 'ai', content: aiReply }]);
+    } else {
+      setShowKeyInput(true);
       setMessages((prev) => [
         ...prev,
         {
           role: 'ai',
-          content: `I reviewed your ${closedTrades.length} trades:
-- **Win Rate**: ${stats.win_rate.toFixed(1)}%
-- **Expectancy**: $${stats.expectancy.toFixed(2)} per trade
-- **Key Recommendation**: Stick to maximum 1% risk per setup and never trade within 15 minutes of major macroeconomic news releases.`,
+          content: `⚠️ I wasn't able to connect to Gemini. Please make sure your Gemini API Key is saved in **Settings &rarr; AI & Gemini** or enter it in the key field below to activate live multi-turn chat!`,
         },
       ]);
-    } finally {
-      setIsLoading(false);
     }
+
+    setIsLoading(false);
   };
 
   const performanceProfileData = useMemo(() => {
@@ -120,10 +176,11 @@ export default function AIReviewPage() {
   const weaknesses = review.insights.filter(i => i.type === 'warning' || i.type === 'danger');
 
   const suggestions = [
+    "🎯 Create a 3-step discipline plan for next week",
     "📊 What is my strongest trading session and symbol?",
     "⚠️ Analyze my repeated trading mistakes",
     "🧠 How can I overcome fear of missing out (FOMO)?",
-    "🎯 Create a 3-step discipline plan for next week",
+    "🛡️ How do I manage drawdown during a losing streak?",
   ];
 
   return (
@@ -140,101 +197,87 @@ export default function AIReviewPage() {
             Real-time pattern analysis, statistical diagnostics, and Gemini conversational trading mentor.
           </p>
         </div>
-        <Button variant="outline" className="gap-2" onClick={handleRefresh} disabled={isRefreshing}>
-          <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-          Refresh Analysis
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isRefreshing} className="gap-1.5">
+            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+            Refresh Analysis
+          </Button>
+        </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-2 mb-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <TabsList className="grid w-full max-w-md grid-cols-2">
           <TabsTrigger value="smart">Smart Review Dashboard</TabsTrigger>
-          <TabsTrigger value="ai" className="relative">
-            Gemini Coach Chat
-            <span className="ml-1.5 flex h-2 w-2 rounded-full bg-green-500" />
+          <TabsTrigger value="ai" className="gap-2">
+            Gemini Coach Chat <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
           </TabsTrigger>
         </TabsList>
 
         {/* TAB 1: Smart Review */}
         <TabsContent value="smart" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card className="md:col-span-1 bg-card border-border flex flex-col justify-center items-center p-6 text-center">
-              <div className="relative w-32 h-32 flex items-center justify-center mb-4">
-                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-                  <circle cx="50" cy="50" r="45" fill="none" stroke="currentColor" strokeWidth="8" className="text-muted/20" />
-                  <circle 
-                    cx="50" 
-                    cy="50" 
-                    r="45" 
-                    fill="none" 
-                    stroke="currentColor" 
-                    strokeWidth="8" 
-                    className="text-primary" 
-                    strokeDasharray="283" 
-                    strokeDashoffset={283 - (283 * (review.overall_score || 72)) / 100} 
-                  />
-                </svg>
-                <div className="absolute flex flex-col items-center">
-                  <span className="text-4xl font-bold">{review.overall_score || 72}</span>
-                  <span className="text-xs text-muted-foreground">/ 100</span>
+          <Card className="bg-card">
+            <CardHeader className="pb-4">
+              <div className="flex justify-between items-center">
+                <CardTitle className="text-lg">Overall Performance Health</CardTitle>
+                <Badge variant={review.overall_score >= 70 ? 'default' : 'secondary'} className="text-xs">
+                  {review.overall_score >= 80 ? 'Elite Performance' : review.overall_score >= 60 ? 'Consistent Growth' : 'High Risk Area'}
+                </Badge>
+              </div>
+              <CardDescription>Composite calculation of risk adherence, consistency, and psychological discipline</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col md:flex-row items-center gap-8">
+                <div className="flex flex-col items-center justify-center p-6 bg-primary/5 rounded-2xl border border-primary/20 min-w-[200px]">
+                  <div className="text-5xl font-black text-primary tracking-tight">
+                    {review.overall_score}
+                    <span className="text-xl text-muted-foreground font-normal">/100</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground font-medium mt-2">Discipline Score</p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 flex-1 w-full">
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="font-medium">Risk Discipline</span>
+                      <span className="text-muted-foreground font-semibold">{review.risk_score}/100</span>
+                    </div>
+                    <ColorProgress value={review.risk_score} colorScheme="blue" className="h-2.5" />
+                    <p className="text-[11px] text-muted-foreground">Adherence to max risk per setup</p>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="font-medium">Execution Consistency</span>
+                      <span className="text-muted-foreground font-semibold">{review.consistency_score}/100</span>
+                    </div>
+                    <ColorProgress value={review.consistency_score} colorScheme="green" className="h-2.5" />
+                    <p className="text-[11px] text-muted-foreground">Even trade frequency &amp; sizing</p>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="font-medium">Psychology &amp; Control</span>
+                      <span className="text-muted-foreground font-semibold">{review.psychology_score}/100</span>
+                    </div>
+                    <ColorProgress value={review.psychology_score} colorScheme="purple" className="h-2.5" />
+                    <p className="text-[11px] text-muted-foreground">Absence of revenge trading</p>
+                  </div>
                 </div>
               </div>
-              <h3 className="font-semibold text-lg">Overall Trader Score</h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                {closedTrades.length < 5
-                  ? "Based on initial statistical modeling"
-                  : `${closedTrades.length} trades evaluated`}
-              </p>
-            </Card>
-
-            <div className="md:col-span-3 grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Risk Discipline</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-blue-500 mb-2">{review.risk_score || 82}/100</div>
-                  <ColorProgress value={review.risk_score || 82} className="h-2" indicatorColor="bg-blue-500" />
-                  <p className="text-xs text-muted-foreground mt-2">Position sizing &amp; stop loss discipline</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Psychology</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-yellow-500 mb-2">{review.psychology_score || 68}/100</div>
-                  <ColorProgress value={review.psychology_score || 68} className="h-2" indicatorColor="bg-yellow-500" />
-                  <p className="text-xs text-muted-foreground mt-2">Emotional control &amp; composure</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Consistency</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-green-500 mb-2">{review.consistency_score || 78}/100</div>
-                  <ColorProgress value={review.consistency_score || 78} className="h-2" indicatorColor="bg-green-500" />
-                  <p className="text-xs text-muted-foreground mt-2">Strategy execution &amp; profit factor</p>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Strengths */}
             <Card className="border-green-500/20 bg-green-500/5">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-green-500">
-                  <CheckCircle2 className="w-5 h-5" /> What You&apos;re Doing Well
+                  <CheckCircle2 className="w-5 h-5" /> Edge &amp; Strengths
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 {strengths.length > 0 ? (
                   strengths.map((s, idx) => (
                     <div key={idx} className="bg-background rounded-lg p-3 border border-border">
-                      <h4 className="font-medium text-sm flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-green-500" /> {s.title}
+                      <h4 className="font-medium text-sm flex items-center gap-2 text-green-500">
+                        <CheckCircle2 className="w-4 h-4" /> {s.title}
                       </h4>
                       <p className="text-sm text-muted-foreground mt-1">{s.description}</p>
                     </div>
@@ -242,13 +285,13 @@ export default function AIReviewPage() {
                 ) : (
                   <>
                     <div className="bg-background rounded-lg p-3 border border-border">
-                      <h4 className="font-medium text-sm flex items-center gap-2">
-                        <Target className="w-4 h-4 text-green-500" /> Strong Reward-to-Risk
+                      <h4 className="font-medium text-sm flex items-center gap-2 text-green-500">
+                        <CheckCircle2 className="w-4 h-4 text-green-500" /> Capital Protection Active
                       </h4>
-                      <p className="text-sm text-muted-foreground mt-1">Average winning trades exceed average losses, protecting long-term equity.</p>
+                      <p className="text-sm text-muted-foreground mt-1">Your risk parameters are configured to protect capital during drawdowns.</p>
                     </div>
                     <div className="bg-background rounded-lg p-3 border border-border">
-                      <h4 className="font-medium text-sm flex items-center gap-2">
+                      <h4 className="font-medium text-sm flex items-center gap-2 text-green-500">
                         <TrendingUp className="w-4 h-4 text-green-500" /> Positive Expectancy
                       </h4>
                       <p className="text-sm text-muted-foreground mt-1">Winning trades deliver an average +{stats.avg_r.toFixed(1)}R return.</p>
@@ -361,7 +404,7 @@ export default function AIReviewPage() {
                 <div>
                   <CardTitle className="text-xl flex items-center gap-2">
                     Gemini AI Trading Mentor
-                    <Badge variant="outline" className="text-xs text-green-500 border-green-500/30">Live Context</Badge>
+                    <Badge variant="outline" className="text-xs text-green-500 border-green-500/30">Conversational AI</Badge>
                   </CardTitle>
                   <CardDescription>
                     Trained on your real trades, profit factor, risk parameters, and emotions.
@@ -384,6 +427,26 @@ export default function AIReviewPage() {
             </CardHeader>
 
             <CardContent className="p-4 md:p-6 space-y-4">
+              {/* API Key Setup Banner if key missing */}
+              {showKeyInput && (
+                <div className="p-4 rounded-xl border border-primary/20 bg-primary/5 flex flex-col sm:flex-row gap-3 items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm text-foreground">
+                    <Key className="w-4 h-4 text-primary shrink-0" />
+                    <span>Enter your Gemini API key to activate chat:</span>
+                  </div>
+                  <div className="flex gap-2 w-full sm:w-auto">
+                    <Input
+                      type="password"
+                      placeholder="Paste Gemini API Key"
+                      value={customKeyInput}
+                      onChange={(e) => setCustomKeyInput(e.target.value)}
+                      className="h-9 text-xs font-mono w-full sm:w-64"
+                    />
+                    <Button size="sm" onClick={handleSaveApiKey}>Save Key</Button>
+                  </div>
+                </div>
+              )}
+
               {/* Chat history */}
               <div className="h-[460px] overflow-y-auto space-y-4 p-4 rounded-xl bg-muted/20 border">
                 {messages.map((msg, i) => (
@@ -414,9 +477,9 @@ export default function AIReviewPage() {
                 ))}
 
                 {isLoading && (
-                  <div className="flex gap-3 items-center text-muted-foreground text-sm p-2 animate-pulse">
-                    <Brain className="w-4 h-4 animate-spin text-primary" />
-                    <span>Gemini Coach is analyzing your trading records...</span>
+                  <div className="flex gap-3 items-center text-muted-foreground text-sm p-3 bg-card border rounded-xl animate-pulse">
+                    <Brain className="w-5 h-5 animate-spin text-primary" />
+                    <span>Gemini Coach is generating your tactical response...</span>
                   </div>
                 )}
                 <div ref={messagesEndRef} />

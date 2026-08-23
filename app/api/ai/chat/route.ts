@@ -2,22 +2,23 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(req: NextRequest) {
   try {
-    const { messages, trades, accounts, stats } = await req.json();
+    const { messages, trades, accounts, stats, apiKey: clientApiKey } = await req.json();
 
     const apiKey =
+      clientApiKey ||
       process.env.GEMINI_API_KEY ||
       process.env.NEXT_PUBLIC_GEMINI_API_KEY;
 
     if (!apiKey) {
       return NextResponse.json(
-        { error: 'Gemini API key is not configured.' },
-        { status: 500 }
+        { error: 'Gemini API key is not configured. Please add your key in Settings.' },
+        { status: 400 }
       );
     }
 
-    // Build context
+    // Build context from user's live store
     const tradeSummary = Array.isArray(trades) && trades.length > 0
-      ? trades.slice(0, 15).map((t: any) => ({
+      ? trades.slice(0, 20).map((t: any) => ({
           symbol: t.symbol,
           direction: t.direction,
           lot_size: t.lot_size,
@@ -42,15 +43,14 @@ export async function POST(req: NextRequest) {
         }))
       : [];
 
-    const systemContext = `[TRADEVAULT TRADER CONTEXT]
+    const systemContext = `[TRADEVAULT SYSTEM CONTEXT]
 - Accounts (${accountSummary.length}): ${JSON.stringify(accountSummary)}
-- Stats: Total P&L: $${stats?.total_pnl?.toFixed(2) || '0'}, Win Rate: ${stats?.win_rate?.toFixed(1) || '0'}%, Profit Factor: ${stats?.profit_factor === Infinity ? 'N/A' : (stats?.profit_factor?.toFixed(2) || '0')}, Avg R: ${stats?.avg_r?.toFixed(2) || '0'}R, Max Drawdown: ${stats?.max_drawdown?.toFixed(1) || '0'}%
-- Recent Trades (${tradeSummary.length}): ${JSON.stringify(tradeSummary)}
-[INSTRUCTIONS]: You are TradeVault AI, an elite Quantitative Trading Coach & Prop Firm Risk Manager. Provide direct, tactical, empathetic, and formatted advice with bold headings, clean bullet points, and realistic guidance referencing their actual portfolio stats.`;
+- Performance Stats: Total P&L: $${stats?.total_pnl?.toFixed(2) || '0'}, Win Rate: ${stats?.win_rate?.toFixed(1) || '0'}%, Profit Factor: ${stats?.profit_factor === Infinity ? 'N/A' : (stats?.profit_factor?.toFixed(2) || '0')}, Avg R: ${stats?.avg_r?.toFixed(2) || '0'}R, Max Drawdown: ${stats?.max_drawdown?.toFixed(1) || '0'}%
+- Trades (${tradeSummary.length}): ${JSON.stringify(tradeSummary)}
+[INSTRUCTIONS]: You are TradeVault AI, a professional Quantitative Trading Coach & Prop Firm Risk Mentor. Provide tactical, structured, formatted advice with bold headings, clean bullet points, and realistic guidance referencing their actual portfolio stats.`;
 
     const contents: any[] = [];
 
-    // Map conversation messages
     if (Array.isArray(messages)) {
       messages.forEach((m: { role: string; content: string }, index: number) => {
         let text = m.content;
@@ -71,30 +71,36 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`;
+    const modelsToTry = ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-pro-latest'];
+    let replyText = '';
+    let lastError = '';
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents }),
-    });
+    for (const model of modelsToTry) {
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents }),
+        });
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error('Gemini API fetch error:', response.status, errText);
-      return NextResponse.json(
-        { error: 'Gemini API call failed', details: errText },
-        { status: response.status }
-      );
+        if (response.ok) {
+          const data = await response.json();
+          replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          if (replyText) break;
+        } else {
+          lastError = await response.text();
+        }
+      } catch (err: any) {
+        lastError = err.message;
+      }
     }
 
-    const data = await response.json();
-    const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
     if (!replyText) {
+      console.error('Gemini API fetch failed:', lastError);
       return NextResponse.json(
-        { error: 'No response candidates returned from Gemini' },
-        { status: 500 }
+        { error: 'Gemini API call failed', details: lastError },
+        { status: 502 }
       );
     }
 
