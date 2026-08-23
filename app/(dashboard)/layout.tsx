@@ -117,7 +117,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter();
   const supabase = createClient();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { accounts, selectedAccountId, setSelectedAccountId } = useTradeStore();
+  const { accounts, selectedAccountId, setSelectedAccountId, profile } = useTradeStore();
 
   const activeAccount = accounts.find((a) => a.id === selectedAccountId);
 
@@ -206,15 +206,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <DropdownMenuTrigger>
                 <div className="flex items-center justify-center rounded-full h-8 w-8 cursor-pointer hover:opacity-80 transition-opacity">
                   <Avatar className="h-8 w-8">
-                    <AvatarImage src="" alt="Avatar" />
-                    <AvatarFallback className="text-xs bg-primary/20 text-primary">TV</AvatarFallback>
+                    <AvatarImage src={profile.avatar_url} alt={profile.name} />
+                    <AvatarFallback className="text-xs bg-primary/20 text-primary">
+                      {profile.name.slice(0, 2).toUpperCase() || "TV"}
+                    </AvatarFallback>
                   </Avatar>
                 </div>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-56" align="end">
                 <DropdownMenuLabel>
-                  <p className="text-sm font-medium">Trader</p>
-                  <p className="text-xs text-muted-foreground">user@tradevault.app</p>
+                  <p className="text-sm font-medium">{profile.name || "Trader"}</p>
+                  <p className="text-xs text-muted-foreground">{profile.email || "trader@tradevault.com"}</p>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => router.push("/profile")} className="cursor-pointer">

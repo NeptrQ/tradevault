@@ -14,7 +14,6 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { AlertTriangle, Upload, Download, Trash2, Key, CheckCircle2, ShieldAlert, Sparkles, User, Settings2, Palette, Bell, Database } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useTradeStore } from '@/lib/store';
-import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -26,179 +25,171 @@ import {
 } from '@/components/ui/dialog';
 
 export default function SettingsPage() {
-  const { accounts, trades, journalEntries, addTrade, clearAllData, resetToDemoData } = useTradeStore();
-  const supabase = createClient();
+  const {
+    accounts,
+    trades,
+    journalEntries,
+    profile,
+    preferences,
+    updateProfile,
+    updatePreferences,
+    addTrade,
+    clearAllData,
+    resetToDemoData,
+    isLoaded,
+  } = useTradeStore();
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   // Dialog State
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
-  // Profile State
-  const [fullName, setFullName] = useState('Trader');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [avatarUrl, setAvatarUrl] = useState('');
-  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  // Profile Form State
+  const [name, setName] = useState(profile.name || 'Alex Trader');
+  const [email, setEmail] = useState(profile.email || '');
+  const [phone, setPhone] = useState(profile.phone || '');
+  const [bio, setBio] = useState(profile.bio || '');
+  const [tradingStyle, setTradingStyle] = useState(profile.trading_style || 'Price Action & Breakout');
+  const [experienceYears, setExperienceYears] = useState(profile.experience_years || '3 Years');
+  const [avatarUrl, setAvatarUrl] = useState(profile.avatar_url || '');
 
-  // Trading Preferences State
-  const [currency, setCurrency] = useState('usd');
-  const [defaultRiskPercent, setDefaultRiskPercent] = useState(1.0);
-  const [timezone, setTimezone] = useState('est');
-  const [defaultAccountId, setDefaultAccountId] = useState('all');
+  // Preferences Form State
+  const [currency, setCurrency] = useState(preferences.currency || 'usd');
+  const [defaultRiskPercent, setDefaultRiskPercent] = useState(preferences.default_risk_percent || 1.0);
+  const [timezone, setTimezone] = useState(preferences.timezone || 'est');
+  const [defaultAccountId, setDefaultAccountId] = useState(preferences.default_account_id || 'all');
 
-  // Risk Settings State
-  const [maxRiskPerTrade, setMaxRiskPerTrade] = useState(2.0);
-  const [maxDailyLoss, setMaxDailyLoss] = useState(5.0);
-  const [maxTradesPerDay, setMaxTradesPerDay] = useState(5);
-  const [enableRiskWarnings, setEnableRiskWarnings] = useState(true);
-  const [showRiskOnDashboard, setShowRiskOnDashboard] = useState(true);
+  // Risk Form State
+  const [maxRiskPerTrade, setMaxRiskPerTrade] = useState(preferences.max_risk_per_trade || 2.0);
+  const [maxDailyLoss, setMaxDailyLoss] = useState(preferences.max_daily_loss || 5.0);
+  const [maxTradesPerDay, setMaxTradesPerDay] = useState(preferences.max_trades_per_day || 5);
+  const [enableRiskWarnings, setEnableRiskWarnings] = useState(preferences.enable_risk_warnings ?? true);
+  const [showRiskOnDashboard, setShowRiskOnDashboard] = useState(preferences.show_risk_on_dashboard ?? true);
 
-  // Appearance State
-  const [theme, setTheme] = useState('dark');
-  const [accentColor, setAccentColor] = useState('blue');
-  const [fontSize, setFontSize] = useState('medium');
-  const [compactMode, setCompactMode] = useState(false);
+  // Appearance Form State
+  const [theme, setTheme] = useState(preferences.theme || 'dark');
+  const [accentColor, setAccentColor] = useState(preferences.accent_color || 'blue');
+  const [fontSize, setFontSize] = useState(preferences.font_size || 'medium');
+  const [compactMode, setCompactMode] = useState(preferences.compact_mode ?? false);
 
-  // Notifications State
-  const [dailyLossWarning, setDailyLossWarning] = useState(true);
-  const [dailyLossThreshold, setDailyLossThreshold] = useState(3);
-  const [riskLimitWarning, setRiskLimitWarning] = useState(true);
-  const [goalReminder, setGoalReminder] = useState(false);
-  const [goalReminderTime, setGoalReminderTime] = useState('08:00');
-  const [weeklySummary, setWeeklySummary] = useState(true);
+  // Notifications Form State
+  const [dailyLossWarning, setDailyLossWarning] = useState(preferences.daily_loss_warning ?? true);
+  const [dailyLossThreshold, setDailyLossThreshold] = useState(preferences.daily_loss_threshold || 3);
+  const [riskLimitWarning, setRiskLimitWarning] = useState(preferences.risk_limit_warning ?? true);
+  const [goalReminder, setGoalReminder] = useState(preferences.goal_reminder ?? false);
+  const [goalReminderTime, setGoalReminderTime] = useState(preferences.goal_reminder_time || '08:00');
+  const [weeklySummary, setWeeklySummary] = useState(preferences.weekly_summary ?? true);
 
-  // AI & Integrations State
+  // AI Form State
   const [aiProvider, setAiProvider] = useState('gemini');
-  const [apiKey, setApiKey] = useState('');
+  const [apiKey, setApiKey] = useState(preferences.gemini_api_key || '');
   const [enableAiDeepDive, setEnableAiDeepDive] = useState(true);
 
-  // Load saved preferences & Supabase user data
+  // Sync state with store on load
   useEffect(() => {
-    async function loadUserData() {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          setEmail(user.email || '');
-          if (user.user_metadata?.full_name) setFullName(user.user_metadata.full_name);
-          if (user.user_metadata?.phone) setPhone(user.user_metadata.phone);
-          if (user.user_metadata?.avatar_url) setAvatarUrl(user.user_metadata.avatar_url);
-        }
+    if (isLoaded) {
+      setName(profile.name);
+      setEmail(profile.email);
+      setPhone(profile.phone);
+      setBio(profile.bio);
+      setTradingStyle(profile.trading_style);
+      setExperienceYears(profile.experience_years);
+      setAvatarUrl(profile.avatar_url);
 
-        const savedPrefs = localStorage.getItem('tradevault_user_preferences');
-        if (savedPrefs) {
-          const p = JSON.parse(savedPrefs);
-          if (p.currency) setCurrency(p.currency);
-          if (p.defaultRiskPercent !== undefined) setDefaultRiskPercent(p.defaultRiskPercent);
-          if (p.timezone) setTimezone(p.timezone);
-          if (p.defaultAccountId) setDefaultAccountId(p.defaultAccountId);
-          if (p.maxRiskPerTrade !== undefined) setMaxRiskPerTrade(p.maxRiskPerTrade);
-          if (p.maxDailyLoss !== undefined) setMaxDailyLoss(p.maxDailyLoss);
-          if (p.maxTradesPerDay !== undefined) setMaxTradesPerDay(p.maxTradesPerDay);
-          if (p.enableRiskWarnings !== undefined) setEnableRiskWarnings(p.enableRiskWarnings);
-          if (p.showRiskOnDashboard !== undefined) setShowRiskOnDashboard(p.showRiskOnDashboard);
-          if (p.accentColor) setAccentColor(p.accentColor);
-          if (p.fontSize) setFontSize(p.fontSize);
-          if (p.compactMode !== undefined) setCompactMode(p.compactMode);
-          if (p.dailyLossWarning !== undefined) setDailyLossWarning(p.dailyLossWarning);
-          if (p.dailyLossThreshold !== undefined) setDailyLossThreshold(p.dailyLossThreshold);
-          if (p.riskLimitWarning !== undefined) setRiskLimitWarning(p.riskLimitWarning);
-          if (p.goalReminder !== undefined) setGoalReminder(p.goalReminder);
-          if (p.goalReminderTime) setGoalReminderTime(p.goalReminderTime);
-          if (p.weeklySummary !== undefined) setWeeklySummary(p.weeklySummary);
-          if (p.apiKey) setApiKey(p.apiKey);
-          if (p.aiProvider) setAiProvider(p.aiProvider);
-        }
-      } catch (e) {
-        console.error('Error loading preferences:', e);
-      }
-    }
-    loadUserData();
-  }, []);
+      setCurrency(preferences.currency);
+      setDefaultRiskPercent(preferences.default_risk_percent);
+      setTimezone(preferences.timezone);
+      setDefaultAccountId(preferences.default_account_id);
 
-  const savePreferencesToStorage = (updates: Record<string, any>) => {
-    try {
-      const current = JSON.parse(localStorage.getItem('tradevault_user_preferences') || '{}');
-      const next = { ...current, ...updates };
-      localStorage.setItem('tradevault_user_preferences', JSON.stringify(next));
-    } catch (e) {
-      console.error('Error saving to storage:', e);
+      setMaxRiskPerTrade(preferences.max_risk_per_trade);
+      setMaxDailyLoss(preferences.max_daily_loss);
+      setMaxTradesPerDay(preferences.max_trades_per_day);
+      setEnableRiskWarnings(preferences.enable_risk_warnings);
+      setShowRiskOnDashboard(preferences.show_risk_on_dashboard);
+
+      setTheme(preferences.theme);
+      setAccentColor(preferences.accent_color);
+      setFontSize(preferences.font_size);
+      setCompactMode(preferences.compact_mode);
+
+      setDailyLossWarning(preferences.daily_loss_warning);
+      setDailyLossThreshold(preferences.daily_loss_threshold);
+      setRiskLimitWarning(preferences.risk_limit_warning);
+      setGoalReminder(preferences.goal_reminder);
+      setGoalReminderTime(preferences.goal_reminder_time);
+      setWeeklySummary(preferences.weekly_summary);
+      setApiKey(preferences.gemini_api_key);
     }
-  };
+  }, [isLoaded, profile, preferences]);
 
   // 1. Save Profile
-  const handleSaveProfile = async () => {
-    setIsSavingProfile(true);
-    try {
-      const { error } = await supabase.auth.updateUser({
-        data: { full_name: fullName, phone, avatar_url: avatarUrl },
-      });
-      if (error) throw error;
-      savePreferencesToStorage({ fullName, phone, avatarUrl });
-      toast.success('Profile updated successfully!');
-    } catch (e: any) {
-      savePreferencesToStorage({ fullName, phone, avatarUrl });
-      toast.success('Profile saved locally!');
-    } finally {
-      setIsSavingProfile(false);
-    }
+  const handleSaveProfile = (e: React.FormEvent) => {
+    e.preventDefault();
+    updateProfile({
+      name: name.trim() || 'Trader',
+      phone: phone.trim(),
+      bio: bio.trim(),
+      trading_style: tradingStyle.trim(),
+      experience_years: experienceYears.trim(),
+      avatar_url: avatarUrl,
+    });
+    toast.success('Profile changes saved successfully!');
   };
 
   // 2. Save Trading Preferences
   const handleSaveTradingPrefs = () => {
-    savePreferencesToStorage({
+    updatePreferences({
       currency,
-      defaultRiskPercent,
+      default_risk_percent: defaultRiskPercent,
       timezone,
-      defaultAccountId,
+      default_account_id: defaultAccountId,
     });
     toast.success('Trading preferences saved!');
   };
 
   // 3. Save Risk Rules
   const handleSaveRiskRules = () => {
-    savePreferencesToStorage({
-      maxRiskPerTrade,
-      maxDailyLoss,
-      maxTradesPerDay,
-      enableRiskWarnings,
-      showRiskOnDashboard,
+    updatePreferences({
+      max_risk_per_trade: maxRiskPerTrade,
+      max_daily_loss: maxDailyLoss,
+      max_trades_per_day: maxTradesPerDay,
+      enable_risk_warnings: enableRiskWarnings,
+      show_risk_on_dashboard: showRiskOnDashboard,
     });
     toast.success('Risk guardrails saved!');
   };
 
   // 4. Save Appearance
   const handleSaveAppearance = () => {
-    savePreferencesToStorage({
-      theme,
-      accentColor,
-      fontSize,
-      compactMode,
+    updatePreferences({
+      theme: theme as any,
+      accent_color: accentColor as any,
+      font_size: fontSize as any,
+      compact_mode: compactMode,
     });
-    toast.success('Appearance settings applied!');
+    toast.success('Appearance updated and applied!');
   };
 
   // 5. Save Notifications
   const handleSaveNotifications = () => {
-    savePreferencesToStorage({
-      dailyLossWarning,
-      dailyLossThreshold,
-      riskLimitWarning,
-      goalReminder,
-      goalReminderTime,
-      weeklySummary,
+    updatePreferences({
+      daily_loss_warning: dailyLossWarning,
+      daily_loss_threshold: dailyLossThreshold,
+      risk_limit_warning: riskLimitWarning,
+      goal_reminder: goalReminder,
+      goal_reminder_time: goalReminderTime,
+      weekly_summary: weeklySummary,
     });
-    toast.success('Notification preferences updated!');
+    toast.success('Notification settings saved!');
   };
 
   // 6. Save AI Settings
   const handleSaveAiSettings = () => {
-    savePreferencesToStorage({
-      aiProvider,
-      apiKey,
-      enableAiDeepDive,
+    updatePreferences({
+      gemini_api_key: apiKey,
     });
-    toast.success('AI configuration saved successfully!');
+    toast.success('AI configuration saved!');
   };
 
   // Export Trades CSV
@@ -262,7 +253,6 @@ export default function SettingsPage() {
         }
 
         let importedCount = 0;
-        // Parse CSV rows
         for (let i = 1; i < lines.length; i++) {
           const cols = lines[i].split(',').map((c) => c.replace(/^"|"$/g, '').trim());
           if (cols.length >= 4) {
@@ -289,14 +279,14 @@ export default function SettingsPage() {
 
         toast.success(`Successfully imported ${importedCount} trades from CSV!`);
       } catch (err) {
-        toast.error('Failed to parse CSV file. Ensure it has standard columns.');
+        toast.error('Failed to parse CSV file. Ensure standard format.');
       }
     };
     reader.readAsText(file);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // Avatar change handler
+  // Avatar upload handler
   const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -304,7 +294,7 @@ export default function SettingsPage() {
     reader.onload = (event) => {
       const dataUrl = event.target?.result as string;
       setAvatarUrl(dataUrl);
-      savePreferencesToStorage({ avatarUrl: dataUrl });
+      updateProfile({ avatar_url: dataUrl });
       toast.success('Avatar image updated!');
     };
     reader.readAsDataURL(file);
@@ -348,68 +338,99 @@ export default function SettingsPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Profile Information</CardTitle>
-                <CardDescription>Update your personal trader identity and contact info.</CardDescription>
+                <CardDescription>Update your personal trader identity, avatar, and contact info.</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="flex items-center gap-6">
-                  <Avatar className="w-20 h-20 border-2 border-primary/20">
-                    <AvatarImage src={avatarUrl} />
-                    <AvatarFallback className="text-xl font-bold bg-primary/10 text-primary">
-                      {fullName.slice(0, 2).toUpperCase() || 'TV'}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <input
-                      type="file"
-                      ref={avatarInputRef}
-                      className="hidden"
-                      accept="image/*"
-                      onChange={handleAvatarUpload}
-                    />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-2"
-                      onClick={() => avatarInputRef.current?.click()}
-                    >
-                      <Upload className="w-4 h-4" /> Change Avatar
-                    </Button>
-                    <p className="text-xs text-muted-foreground mt-1.5">JPG, PNG or GIF. Max size 2MB.</p>
+              <form onSubmit={handleSaveProfile}>
+                <CardContent className="space-y-6">
+                  <div className="flex items-center gap-6">
+                    <Avatar className="w-20 h-20 border-2 border-primary/20">
+                      <AvatarImage src={avatarUrl} />
+                      <AvatarFallback className="text-xl font-bold bg-primary/10 text-primary">
+                        {name.slice(0, 2).toUpperCase() || 'TV'}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <input
+                        type="file"
+                        ref={avatarInputRef}
+                        className="hidden"
+                        accept="image/*"
+                        onChange={handleAvatarUpload}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                        onClick={() => avatarInputRef.current?.click()}
+                      >
+                        <Upload className="w-4 h-4" /> Change Avatar
+                      </Button>
+                      <p className="text-xs text-muted-foreground mt-1.5">JPG, PNG or WebP. Max size 2MB.</p>
+                    </div>
                   </div>
-                </div>
 
-                <div className="space-y-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="name">Full Name</Label>
-                    <Input
-                      id="name"
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
-                      placeholder="e.g. Alex Vance"
-                    />
+                  <div className="space-y-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="name">Full Name</Label>
+                      <Input
+                        id="name"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="e.g. Alex Vance"
+                        required
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="email">Email</Label>
+                      <Input id="email" value={email} disabled className="bg-muted/50" />
+                      <p className="text-xs text-muted-foreground">Managed through your Supabase account.</p>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="phone">Phone Number</Label>
+                      <Input
+                        id="phone"
+                        type="tel"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        placeholder="+1 (555) 000-0000"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="style">Trading Style</Label>
+                        <Input
+                          id="style"
+                          value={tradingStyle}
+                          onChange={(e) => setTradingStyle(e.target.value)}
+                          placeholder="e.g. Breakouts, Scalping"
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="experience">Experience</Label>
+                        <Input
+                          id="experience"
+                          value={experienceYears}
+                          onChange={(e) => setExperienceYears(e.target.value)}
+                          placeholder="e.g. 3 Years"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="bio">Trader Bio</Label>
+                      <Input
+                        id="bio"
+                        value={bio}
+                        onChange={(e) => setBio(e.target.value)}
+                        placeholder="Short overview of your trading goals..."
+                      />
+                    </div>
                   </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input id="email" value={email} disabled className="bg-muted/50" />
-                    <p className="text-xs text-muted-foreground">Managed through your Supabase account.</p>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="phone">Phone (Optional)</Label>
-                    <Input
-                      id="phone"
-                      type="tel"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      placeholder="+1 (555) 000-0000"
-                    />
-                  </div>
-                </div>
-              </CardContent>
-              <CardFooter className="border-t pt-4">
-                <Button onClick={handleSaveProfile} disabled={isSavingProfile}>
-                  {isSavingProfile ? 'Saving...' : 'Save Changes'}
-                </Button>
-              </CardFooter>
+                </CardContent>
+                <CardFooter className="border-t pt-4">
+                  <Button type="submit">Save Changes</Button>
+                </CardFooter>
+              </form>
             </Card>
           </TabsContent>
 
@@ -581,12 +602,19 @@ export default function SettingsPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Appearance &amp; Theme</CardTitle>
-                <CardDescription>Customize the dark aesthetic and color accents.</CardDescription>
+                <CardDescription>Customize dark/light mode and dynamic color accents.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-3">
-                  <Label>Theme</Label>
-                  <RadioGroup value={theme} onValueChange={setTheme} className="flex gap-4">
+                  <Label>Theme Mode</Label>
+                  <RadioGroup
+                    value={theme}
+                    onValueChange={(val) => {
+                      setTheme(val);
+                      updatePreferences({ theme: val as any });
+                    }}
+                    className="flex gap-4"
+                  >
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="dark" id="theme-dark" />
                       <Label htmlFor="theme-dark" className="cursor-pointer">Dark Mode</Label>
@@ -610,7 +638,10 @@ export default function SettingsPage() {
                     ].map((item) => (
                       <div
                         key={item.id}
-                        onClick={() => setAccentColor(item.id)}
+                        onClick={() => {
+                          setAccentColor(item.id);
+                          updatePreferences({ accent_color: item.id as any });
+                        }}
                         className={`w-9 h-9 rounded-full cursor-pointer transition-all flex items-center justify-center ${
                           accentColor === item.id ? 'ring-2 ring-primary ring-offset-2 ring-offset-background scale-110' : 'opacity-80 hover:opacity-100'
                         }`}
@@ -625,7 +656,14 @@ export default function SettingsPage() {
 
                 <div className="space-y-3">
                   <Label>Font Size</Label>
-                  <RadioGroup value={fontSize} onValueChange={setFontSize} className="flex gap-4">
+                  <RadioGroup
+                    value={fontSize}
+                    onValueChange={(val) => {
+                      setFontSize(val);
+                      updatePreferences({ font_size: val as any });
+                    }}
+                    className="flex gap-4"
+                  >
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="small" id="font-sm" />
                       <Label htmlFor="font-sm" className="cursor-pointer">Small</Label>
@@ -644,9 +682,15 @@ export default function SettingsPage() {
                 <div className="pt-4 border-t border-border flex items-center justify-between">
                   <div className="space-y-0.5">
                     <Label>Compact Mode</Label>
-                    <p className="text-sm text-muted-foreground">Reduce table row height and padding to fit more trades.</p>
+                    <p className="text-sm text-muted-foreground">Reduce padding to maximize on-screen trade data.</p>
                   </div>
-                  <Switch checked={compactMode} onCheckedChange={setCompactMode} />
+                  <Switch
+                    checked={compactMode}
+                    onCheckedChange={(val) => {
+                      setCompactMode(val);
+                      updatePreferences({ compact_mode: val });
+                    }}
+                  />
                 </div>
               </CardContent>
               <CardFooter className="border-t pt-4">
@@ -660,13 +704,13 @@ export default function SettingsPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Notification Preferences</CardTitle>
-                <CardDescription>Manage your daily risk alerts and journaling reminders.</CardDescription>
+                <CardDescription>Manage your risk limit alerts and daily journaling reminders.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <Label>Daily Loss Warning</Label>
-                    <p className="text-sm text-muted-foreground">Alert when daily loss exceeds a specific % threshold.</p>
+                    <p className="text-sm text-muted-foreground">Alert when daily loss exceeds threshold %.</p>
                   </div>
                   <div className="flex items-center gap-3">
                     <Input
@@ -683,7 +727,7 @@ export default function SettingsPage() {
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <Label>Risk Limit Warning</Label>
-                    <p className="text-sm text-muted-foreground">Alert when a trade setup exceeds your max risk %.</p>
+                    <p className="text-sm text-muted-foreground">Alert when a trade setup exceeds max risk %.</p>
                   </div>
                   <Switch checked={riskLimitWarning} onCheckedChange={setRiskLimitWarning} />
                 </div>
@@ -691,7 +735,7 @@ export default function SettingsPage() {
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <Label>Goal &amp; Journal Reminder</Label>
-                    <p className="text-sm text-muted-foreground">Daily reminder to review closed trades and write journal entries.</p>
+                    <p className="text-sm text-muted-foreground">Daily reminder to review closed trades and write notes.</p>
                   </div>
                   <div className="flex items-center gap-3">
                     <Input
