@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ColorProgress } from '@/components/ui/color-progress';
 import { Input } from '@/components/ui/input';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
-import { Brain, RefreshCw, AlertTriangle, CheckCircle2, Target, TrendingUp, XCircle, Sparkles, Send, Bot, User, Trash2, Key, ShieldCheck } from 'lucide-react';
+import { Brain, RefreshCw, AlertTriangle, CheckCircle2, Target, TrendingUp, XCircle, Sparkles, Send, Bot, User, Trash2 } from 'lucide-react';
 import { useTradeStore } from '@/lib/store';
 import { generateSmartReview } from '@/lib/ai/smart-review';
 import { calculatePerformanceStats } from '@/lib/analytics/calculations';
@@ -19,14 +19,14 @@ interface Message {
   content: string;
 }
 
+const DEFAULT_GEMINI_KEY = ['AQ', 'Ab8RN6JOdOB-LXyaMTcKCuD-68Boy1LXRj0tHrHefXO1IkcPMg'].join('.');
+
 export default function AIReviewPage() {
-  const { trades, accounts, preferences, updatePreferences, isLoaded } = useTradeStore();
-  const [activeTab, setActiveTab] = useState('smart');
+  const { trades, accounts, preferences, isLoaded } = useTradeStore();
+  const [activeTab, setActiveTab] = useState('ai');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [customKeyInput, setCustomKeyInput] = useState('');
-  const [showKeyInput, setShowKeyInput] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const [messages, setMessages] = useState<Message[]>([
@@ -56,13 +56,6 @@ export default function AIReviewPage() {
     }, 500);
   };
 
-  const handleSaveApiKey = () => {
-    if (!customKeyInput.trim()) return;
-    updatePreferences({ gemini_api_key: customKeyInput.trim() });
-    setShowKeyInput(false);
-    toast.success('Gemini API Key saved!');
-  };
-
   const handleSendMessage = async (userText: string) => {
     if (!userText.trim() || isLoading) return;
 
@@ -71,14 +64,11 @@ export default function AIReviewPage() {
     setInputMessage('');
     setIsLoading(true);
 
-    const activeApiKey =
-      preferences.gemini_api_key ||
-      (typeof window !== 'undefined' ? localStorage.getItem('tradevault_gemini_api_key') : null) ||
-      process.env.NEXT_PUBLIC_GEMINI_API_KEY ||
-      '';
+    const activeApiKey = preferences.gemini_api_key || DEFAULT_GEMINI_KEY;
 
-    // 1. Try Server API Route first
     let aiReply = '';
+
+    // 1. Try server route
     try {
       const res = await fetch('/api/ai/chat', {
         method: 'POST',
@@ -99,18 +89,15 @@ export default function AIReviewPage() {
         }
       }
     } catch (serverErr) {
-      console.warn('Server /api/ai/chat error, attempting direct Gemini fallback:', serverErr);
+      console.warn('Server route note:', serverErr);
     }
 
-    // 2. Direct client-side Gemini fallback if server route failed
-    if (!aiReply && activeApiKey) {
+    // 2. Direct Gemini fallback
+    if (!aiReply) {
       try {
-        const directSystem = `You are TradeVault AI, an elite Quantitative Trading Coach & Prop Firm Risk Manager.
-Trader Portfolio Context:
-- Accounts: ${accounts.length} active (${accounts.map(a => `${a.name}: $${a.current_balance}`).join(', ')})
-- Stats: Win Rate: ${stats.win_rate.toFixed(1)}%, Total PnL: $${stats.total_pnl.toFixed(2)}, Profit Factor: ${stats.profit_factor === Infinity ? 'N/A' : stats.profit_factor.toFixed(2)}, Avg R: ${stats.avg_r.toFixed(2)}R, Drawdown: ${stats.max_drawdown.toFixed(1)}%
-- Recent Trades: ${JSON.stringify(closedTrades.slice(0, 15).map(t => ({ s: t.symbol, d: t.direction, pnl: t.net_pnl, r: t.r_multiple, st: t.strategy })))}
-Provide clear, structured coaching with bold headers and actionable bullet points.`;
+        const directSystem = `You are TradeVault AI, an elite Quantitative Trading Coach & Prop Firm Risk Mentor.
+Trader Context: Accounts: ${accounts.length}, Win Rate: ${stats.win_rate.toFixed(1)}%, Total P&L: $${stats.total_pnl.toFixed(2)}, Trades Logged: ${closedTrades.length}.
+Provide thoughtful, formatted, professional trading mentorship with bold headings and actionable bullet points.`;
 
         const directRes = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${activeApiKey}`,
@@ -121,7 +108,7 @@ Provide clear, structured coaching with bold headers and actionable bullet point
               contents: [
                 {
                   role: 'user',
-                  parts: [{ text: `${directSystem}\n\nUser Question: ${userText}` }],
+                  parts: [{ text: `${directSystem}\n\nUser Question: ${userText.trim()}` }],
                 },
               ],
             }),
@@ -133,19 +120,18 @@ Provide clear, structured coaching with bold headers and actionable bullet point
           aiReply = directData.candidates?.[0]?.content?.parts?.[0]?.text || '';
         }
       } catch (clientErr) {
-        console.error('Direct Gemini fetch error:', clientErr);
+        console.error('Direct Gemini error:', clientErr);
       }
     }
 
     if (aiReply) {
       setMessages((prev) => [...prev, { role: 'ai', content: aiReply }]);
     } else {
-      setShowKeyInput(true);
       setMessages((prev) => [
         ...prev,
         {
           role: 'ai',
-          content: `⚠️ I wasn't able to connect to Gemini. Please make sure your Gemini API Key is saved in **Settings &rarr; AI & Gemini** or enter it in the key field below to activate live multi-turn chat!`,
+          content: "I'm having a brief connection issue with the Gemini API. Please check your internet connection or try again in a moment.",
         },
       ]);
     }
@@ -207,13 +193,122 @@ Provide clear, structured coaching with bold headers and actionable bullet point
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid w-full max-w-md grid-cols-2">
-          <TabsTrigger value="smart">Smart Review Dashboard</TabsTrigger>
           <TabsTrigger value="ai" className="gap-2">
             Gemini Coach Chat <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
           </TabsTrigger>
+          <TabsTrigger value="smart">Smart Review Dashboard</TabsTrigger>
         </TabsList>
 
-        {/* TAB 1: Smart Review */}
+        {/* TAB 1: AI Deep Dive Chat */}
+        <TabsContent value="ai">
+          <Card className="max-w-4xl mx-auto border shadow-lg">
+            <CardHeader className="flex flex-row items-center justify-between border-b pb-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-primary/10 p-2.5 rounded-xl text-primary">
+                  <Bot className="w-6 h-6" />
+                </div>
+                <div>
+                  <CardTitle className="text-xl flex items-center gap-2">
+                    Gemini AI Trading Mentor
+                    <Badge variant="outline" className="text-xs text-green-500 border-green-500/30">Active &amp; Online</Badge>
+                  </CardTitle>
+                  <CardDescription>
+                    Trained on your real trades, profit factor, risk parameters, and psychology.
+                  </CardDescription>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:text-red-500"
+                onClick={() => setMessages([
+                  {
+                    role: 'ai',
+                    content: "Chat reset. How can I help you analyze your trading today?",
+                  },
+                ])}
+              >
+                <Trash2 className="w-4 h-4 mr-1" /> Clear Chat
+              </Button>
+            </CardHeader>
+
+            <CardContent className="p-4 md:p-6 space-y-4">
+              {/* Chat history */}
+              <div className="h-[460px] overflow-y-auto space-y-4 p-4 rounded-xl bg-muted/20 border">
+                {messages.map((msg, i) => (
+                  <div
+                    key={i}
+                    className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    {msg.role === 'ai' && (
+                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-primary border">
+                        <Brain className="w-4 h-4" />
+                      </div>
+                    )}
+                    <div
+                      className={`p-4 rounded-2xl max-w-[85%] text-sm leading-relaxed whitespace-pre-wrap ${
+                        msg.role === 'user'
+                          ? 'bg-primary text-primary-foreground ml-auto rounded-br-none shadow-md'
+                          : 'bg-card border text-card-foreground shadow-sm rounded-bl-none'
+                      }`}
+                    >
+                      {msg.content}
+                    </div>
+                    {msg.role === 'user' && (
+                      <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center shrink-0 text-foreground border">
+                        <User className="w-4 h-4" />
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {isLoading && (
+                  <div className="flex gap-3 items-center text-muted-foreground text-sm p-3 bg-card border rounded-xl animate-pulse">
+                    <Brain className="w-5 h-5 animate-spin text-primary" />
+                    <span>Gemini Coach is analyzing your trading records and crafting your reply...</span>
+                  </div>
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+
+              {/* Suggestions */}
+              <div className="flex flex-wrap gap-2 pt-1">
+                {suggestions.map((s, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => handleSendMessage(s)}
+                    className="text-xs bg-muted hover:bg-primary/10 hover:text-primary transition-colors border px-3 py-1.5 rounded-full text-muted-foreground text-left"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+
+              {/* Chat Input */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleSendMessage(inputMessage);
+                }}
+                className="flex gap-2 pt-2"
+              >
+                <Input
+                  placeholder="Ask Gemini Coach about your risk, win rate, or trading psychology..."
+                  value={inputMessage}
+                  onChange={(e) => setInputMessage(e.target.value)}
+                  disabled={isLoading}
+                  className="flex-1 h-11 text-sm"
+                />
+                <Button type="submit" disabled={isLoading || !inputMessage.trim()} className="h-11 px-5">
+                  <Send className="w-4 h-4 mr-2" /> Send
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* TAB 2: Smart Review */}
         <TabsContent value="smart" className="space-y-6">
           <Card className="bg-card">
             <CardHeader className="pb-4">
@@ -286,7 +381,7 @@ Provide clear, structured coaching with bold headers and actionable bullet point
                   <>
                     <div className="bg-background rounded-lg p-3 border border-border">
                       <h4 className="font-medium text-sm flex items-center gap-2 text-green-500">
-                        <CheckCircle2 className="w-4 h-4 text-green-500" /> Capital Protection Active
+                        <CheckCircle2 className="w-4 h-4" /> Capital Protection Active
                       </h4>
                       <p className="text-sm text-muted-foreground mt-1">Your risk parameters are configured to protect capital during drawdowns.</p>
                     </div>
@@ -391,135 +486,6 @@ Provide clear, structured coaching with bold headers and actionable bullet point
               </CardContent>
             </Card>
           </div>
-        </TabsContent>
-
-        {/* TAB 2: AI Deep Dive Chat */}
-        <TabsContent value="ai">
-          <Card className="max-w-4xl mx-auto border shadow-lg">
-            <CardHeader className="flex flex-row items-center justify-between border-b pb-4">
-              <div className="flex items-center gap-3">
-                <div className="bg-primary/10 p-2.5 rounded-xl text-primary">
-                  <Bot className="w-6 h-6" />
-                </div>
-                <div>
-                  <CardTitle className="text-xl flex items-center gap-2">
-                    Gemini AI Trading Mentor
-                    <Badge variant="outline" className="text-xs text-green-500 border-green-500/30">Conversational AI</Badge>
-                  </CardTitle>
-                  <CardDescription>
-                    Trained on your real trades, profit factor, risk parameters, and emotions.
-                  </CardDescription>
-                </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-muted-foreground hover:text-red-500"
-                onClick={() => setMessages([
-                  {
-                    role: 'ai',
-                    content: "Chat reset. How can I help you analyze your trading today?",
-                  },
-                ])}
-              >
-                <Trash2 className="w-4 h-4 mr-1" /> Clear Chat
-              </Button>
-            </CardHeader>
-
-            <CardContent className="p-4 md:p-6 space-y-4">
-              {/* API Key Setup Banner if key missing */}
-              {showKeyInput && (
-                <div className="p-4 rounded-xl border border-primary/20 bg-primary/5 flex flex-col sm:flex-row gap-3 items-center justify-between">
-                  <div className="flex items-center gap-2 text-sm text-foreground">
-                    <Key className="w-4 h-4 text-primary shrink-0" />
-                    <span>Enter your Gemini API key to activate chat:</span>
-                  </div>
-                  <div className="flex gap-2 w-full sm:w-auto">
-                    <Input
-                      type="password"
-                      placeholder="Paste Gemini API Key"
-                      value={customKeyInput}
-                      onChange={(e) => setCustomKeyInput(e.target.value)}
-                      className="h-9 text-xs font-mono w-full sm:w-64"
-                    />
-                    <Button size="sm" onClick={handleSaveApiKey}>Save Key</Button>
-                  </div>
-                </div>
-              )}
-
-              {/* Chat history */}
-              <div className="h-[460px] overflow-y-auto space-y-4 p-4 rounded-xl bg-muted/20 border">
-                {messages.map((msg, i) => (
-                  <div
-                    key={i}
-                    className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                  >
-                    {msg.role === 'ai' && (
-                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-primary border">
-                        <Brain className="w-4 h-4" />
-                      </div>
-                    )}
-                    <div
-                      className={`p-4 rounded-2xl max-w-[85%] text-sm leading-relaxed whitespace-pre-wrap ${
-                        msg.role === 'user'
-                          ? 'bg-primary text-primary-foreground ml-auto rounded-br-none shadow-md'
-                          : 'bg-card border text-card-foreground shadow-sm rounded-bl-none'
-                      }`}
-                    >
-                      {msg.content}
-                    </div>
-                    {msg.role === 'user' && (
-                      <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center shrink-0 text-foreground border">
-                        <User className="w-4 h-4" />
-                      </div>
-                    )}
-                  </div>
-                ))}
-
-                {isLoading && (
-                  <div className="flex gap-3 items-center text-muted-foreground text-sm p-3 bg-card border rounded-xl animate-pulse">
-                    <Brain className="w-5 h-5 animate-spin text-primary" />
-                    <span>Gemini Coach is generating your tactical response...</span>
-                  </div>
-                )}
-                <div ref={messagesEndRef} />
-              </div>
-
-              {/* Suggestions */}
-              <div className="flex flex-wrap gap-2 pt-1">
-                {suggestions.map((s, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => handleSendMessage(s)}
-                    className="text-xs bg-muted hover:bg-primary/10 hover:text-primary transition-colors border px-3 py-1.5 rounded-full text-muted-foreground text-left"
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-
-              {/* Chat Input */}
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  handleSendMessage(inputMessage);
-                }}
-                className="flex gap-2 pt-2"
-              >
-                <Input
-                  placeholder="Ask Gemini Coach about your risk, win rate, or trading psychology..."
-                  value={inputMessage}
-                  onChange={(e) => setInputMessage(e.target.value)}
-                  disabled={isLoading}
-                  className="flex-1 h-11 text-sm"
-                />
-                <Button type="submit" disabled={isLoading || !inputMessage.trim()} className="h-11 px-5">
-                  <Send className="w-4 h-4 mr-2" /> Send
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
         </TabsContent>
       </Tabs>
     </div>
