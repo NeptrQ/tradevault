@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, ArrowLeftRight, Wallet, CalendarDays,
   BarChart3, Target, Shield, BookOpen, Brain, Settings,
-  User, Menu, Bell, TrendingUp, LogOut, ChevronDown,
+  User, Menu, Bell, TrendingUp, LogOut, ChevronDown, Sun, Moon,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -21,9 +21,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { useTradeStore } from "@/lib/store";
 
 const mainNavItems = [
   { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -52,7 +53,7 @@ function NavItem({ href, icon: Icon, title, active, onClick }: {
       className={cn(
         "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all",
         active
-          ? "bg-primary/15 text-primary"
+          ? "bg-primary/15 text-primary font-semibold"
           : "text-muted-foreground hover:bg-muted hover:text-foreground"
       )}
     >
@@ -64,13 +65,13 @@ function NavItem({ href, icon: Icon, title, active, onClick }: {
 
 function SidebarContent({ pathname, onNav }: { pathname: string; onNav?: () => void }) {
   return (
-    <div className="flex h-full flex-col" style={{ background: "oklch(0.13 0.02 250)" }}>
+    <div className="flex h-full flex-col bg-card">
       <div className="flex h-16 items-center px-5 border-b border-border">
         <Link href="/dashboard" className="flex items-center gap-2.5 font-bold text-lg">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
             <TrendingUp className="h-5 w-5 text-primary-foreground" />
           </div>
-          <span>TradeVault</span>
+          <span className="text-foreground">TradeVault</span>
         </Link>
       </div>
       <ScrollArea className="flex-1 py-3">
@@ -110,14 +111,12 @@ function SidebarContent({ pathname, onNav }: { pathname: string; onNav?: () => v
   );
 }
 
-import { useTradeStore } from "@/lib/store";
-
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { accounts, selectedAccountId, setSelectedAccountId, profile } = useTradeStore();
+  const { accounts, selectedAccountId, setSelectedAccountId, profile, preferences, updatePreferences } = useTradeStore();
 
   const activeAccount = accounts.find((a) => a.id === selectedAccountId);
 
@@ -127,15 +126,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     router.refresh();
   };
 
+  const toggleTheme = () => {
+    const nextTheme = preferences.theme === "light" ? "dark" : "light";
+    updatePreferences({ theme: nextTheme });
+  };
+
   const currentTitle =
     [...mainNavItems, ...bottomNavItems].find(
       (item) => pathname === item.href || pathname.startsWith(item.href + "/")
     )?.title ?? "Dashboard";
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex min-h-screen bg-background text-foreground">
       {/* Desktop Sidebar */}
-      <aside className="hidden w-[240px] flex-col md:flex fixed inset-y-0 z-50 border-r border-border">
+      <aside className="hidden w-[240px] flex-col md:flex fixed inset-y-0 z-50 border-r border-border bg-card">
         <SidebarContent pathname={pathname} />
       </aside>
 
@@ -143,7 +147,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className="flex-1 md:ml-[240px] flex flex-col min-h-screen">
         {/* Top bar */}
         <header className="sticky top-0 z-40 flex h-16 items-center gap-4 border-b border-border bg-card px-6">
-          {/* Mobile menu button - outside Sheet to avoid button nesting */}
           <button
             className="md:hidden h-9 w-9 flex items-center justify-center rounded-md hover:bg-muted transition-colors"
             onClick={() => setMobileOpen(true)}
@@ -194,6 +197,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
+
+            {/* Quick Theme Toggle (Light / Dark) */}
+            <button
+              onClick={toggleTheme}
+              title={`Switch to ${preferences.theme === 'light' ? 'Dark' : 'Light'} Mode`}
+              className="h-8 w-8 flex items-center justify-center rounded-md border border-border hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {preferences.theme === "light" ? (
+                <Moon className="h-4 w-4 text-blue-500" />
+              ) : (
+                <Sun className="h-4 w-4 text-yellow-500" />
+              )}
+            </button>
 
             {/* Notifications */}
             <button className="relative h-8 w-8 flex items-center justify-center rounded-md hover:bg-muted transition-colors">

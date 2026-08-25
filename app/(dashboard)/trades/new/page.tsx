@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
@@ -80,61 +80,56 @@ export default function AddTradePage() {
     }
   });
 
-  const { watch, setValue } = form;
-  const values = watch();
+  const entryPrice = form.watch('entryPrice');
+  const exitPrice = form.watch('exitPrice');
+  const lotSize = form.watch('lotSize');
+  const direction = form.watch('direction');
+  const stopLoss = form.watch('stopLoss');
+  const takeProfit = form.watch('takeProfit');
+  const riskAmount = form.watch('riskAmount');
+  const commission = form.watch('commission');
+  const swap = form.watch('swap');
 
-  // Calculated values
-  const [calculatedValues, setCalculatedValues] = useState({
-    riskPercentage: 0,
-    plannedRR: 0,
-    pnl: 0,
-    netPnl: 0,
-    rMultiple: 0,
-  });
-
-  useEffect(() => {
-    // Dummy calculations for demo purposes
+  const calculatedValues = useMemo(() => {
     let riskPercentage = 0;
     let plannedRR = 0;
     let pnl = 0;
     let netPnl = 0;
     let rMultiple = 0;
 
-    const accountBalance = 100000; // Mock balance
+    const accountBalance = 100000;
 
-    if (values.riskAmount) {
-      riskPercentage = (values.riskAmount / accountBalance) * 100;
+    if (riskAmount) {
+      riskPercentage = (riskAmount / accountBalance) * 100;
     }
 
-    if (values.entryPrice && values.stopLoss && values.takeProfit) {
-      const risk = Math.abs(values.entryPrice - values.stopLoss);
-      const reward = Math.abs(values.takeProfit - values.entryPrice);
+    if (entryPrice && stopLoss && takeProfit) {
+      const risk = Math.abs(entryPrice - stopLoss);
+      const reward = Math.abs(takeProfit - entryPrice);
       if (risk > 0) plannedRR = reward / risk;
     }
 
-    if (values.entryPrice && values.exitPrice && values.lotSize) {
-      // Simplified PnL calc
-      const diff = values.direction === 'Long' 
-        ? values.exitPrice - values.entryPrice 
-        : values.entryPrice - values.exitPrice;
+    if (entryPrice && exitPrice && lotSize) {
+      const diff = direction === 'Long' 
+        ? exitPrice - entryPrice 
+        : entryPrice - exitPrice;
       
-      // Rough multiplier for demo
-      pnl = diff * values.lotSize * 100000;
-      netPnl = pnl - (values.commission || 0) + (values.swap || 0);
+      pnl = diff * lotSize * 100000;
+      netPnl = pnl - (commission || 0) + (swap || 0);
 
-      if (values.riskAmount && values.riskAmount > 0) {
-        rMultiple = pnl / values.riskAmount;
+      if (riskAmount && riskAmount > 0) {
+        rMultiple = pnl / riskAmount;
       }
     }
 
-    setCalculatedValues({
+    return {
       riskPercentage,
       plannedRR,
       pnl,
       netPnl,
       rMultiple
-    });
-  }, [values]);
+    };
+  }, [entryPrice, exitPrice, lotSize, direction, stopLoss, takeProfit, riskAmount, commission, swap]);
 
   const addTag = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && tagInput.trim()) {
@@ -382,7 +377,7 @@ export default function AddTradePage() {
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label>Before Trade</Label>
-                  <Select onValueChange={(val) => setValue('emotionBefore', val as string)}>
+                  <Select onValueChange={(val) => form.setValue('emotionBefore', val as string)}>
                     <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                     <SelectContent>
                       {EMOTIONS.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
@@ -391,7 +386,7 @@ export default function AddTradePage() {
                 </div>
                 <div className="space-y-2">
                   <Label>During Trade</Label>
-                  <Select onValueChange={(val) => setValue('emotionDuring', val as string)}>
+                  <Select onValueChange={(val) => form.setValue('emotionDuring', val as string)}>
                     <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                     <SelectContent>
                       {EMOTIONS.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
@@ -400,7 +395,7 @@ export default function AddTradePage() {
                 </div>
                 <div className="space-y-2">
                   <Label>After Trade</Label>
-                  <Select onValueChange={(val) => setValue('emotionAfter', val as string)}>
+                  <Select onValueChange={(val) => form.setValue('emotionAfter', val as string)}>
                     <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                     <SelectContent>
                       {EMOTIONS.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
@@ -412,14 +407,14 @@ export default function AddTradePage() {
               <div className="space-y-4">
                 <div className="flex justify-between">
                   <Label>Confidence Level</Label>
-                  <span className="font-bold">{values.confidence}/10</span>
+                  <span className="font-bold">{form.watch('confidence') || 5}/10</span>
                 </div>
                 <Slider 
                   min={1} 
                   max={10} 
                   step={1} 
                   defaultValue={[5]} 
-                  onValueChange={(vals) => setValue('confidence', vals[0])}
+                  onValueChange={(vals) => form.setValue('confidence', vals[0])}
                 />
                 <div className="flex justify-between text-xs text-muted-foreground">
                   <span>Very Low</span>
