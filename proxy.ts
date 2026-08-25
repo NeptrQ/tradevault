@@ -5,8 +5,8 @@ export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://lpnlchgtbtvzvbtpualw.supabase.co',
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxwbmxjaGd0YnR2enZidHB1YWx3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc0MjA3OTAsImV4cCI6MjEwMjk5Njc5MH0.oC6CZ7uBsXDKd6N2Og8VQDVDedKGUyIGbsBR1jIHmt4',
     {
       cookies: {
         getAll() {
@@ -24,11 +24,12 @@ export async function proxy(request: NextRequest) {
   )
 
   const { data: { user } } = await supabase.auth.getUser()
+  const pathname = request.nextUrl.pathname
 
-  const publicRoutes = ['/login', '/register']
-  const isPublicRoute = publicRoutes.some(route => request.nextUrl.pathname.startsWith(route))
+  const isPublicRoute = pathname.startsWith('/login') || pathname.startsWith('/register')
+  const isApiRoute = pathname.startsWith('/api')
 
-  if (!user && !isPublicRoute) {
+  if (!user && !isPublicRoute && !isApiRoute) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)

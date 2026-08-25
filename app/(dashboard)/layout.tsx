@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -116,14 +116,43 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter();
   const supabase = createClient();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const { accounts, selectedAccountId, setSelectedAccountId, profile, preferences, updatePreferences } = useTradeStore();
+
+  useEffect(() => {
+    let mounted = true;
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!mounted) return;
+      if (!user) {
+        router.replace("/login");
+      } else {
+        setIsAuthenticated(true);
+        setAuthChecked(true);
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session && mounted) {
+        setIsAuthenticated(false);
+        router.replace("/login");
+      }
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, [router]);
 
   const activeAccount = accounts.find((a) => a.id === selectedAccountId);
 
   const handleSignOut = async () => {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("tradevault_master_v6");
+    }
     await supabase.auth.signOut();
-    router.push("/login");
-    router.refresh();
+    router.replace("/login");
   };
 
   const toggleTheme = () => {
@@ -135,6 +164,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     [...mainNavItems, ...bottomNavItems].find(
       (item) => pathname === item.href || pathname.startsWith(item.href + "/")
     )?.title ?? "Dashboard";
+
+  if (!authChecked || !isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-3">
+        <TrendingUp className="h-8 w-8 text-primary animate-pulse" />
+        <p className="text-sm text-muted-foreground animate-pulse font-medium">Verifying credentials...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
