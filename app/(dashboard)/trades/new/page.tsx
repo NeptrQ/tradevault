@@ -2,13 +2,10 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { 
-  ArrowLeft, Save, UploadCloud, X
-} from 'lucide-react';
+import { ArrowLeft, Save, UploadCloud, X, DollarSign } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,7 +19,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-
 import { useTradeStore } from '@/lib/store';
 
 const tradeSchema = z.object({
@@ -33,15 +29,17 @@ const tradeSchema = z.object({
   entryTime: z.string().min(1, 'Entry time is required'),
   exitDate: z.string().optional(),
   exitTime: z.string().optional(),
-  entryPrice: z.coerce.number().min(0.00001, 'Invalid price'),
+  entryPrice: z.coerce.number().min(0.000001, 'Invalid entry price'),
   exitPrice: z.coerce.number().optional(),
-  lotSize: z.coerce.number().min(0.01, 'Invalid lot size'),
+  lotSize: z.coerce.number().min(0.001, 'Invalid lot size'),
   strategy: z.string().min(1, 'Strategy is required'),
   
-  stopLoss: z.coerce.number().optional(),
-  takeProfit: z.coerce.number().optional(),
-  riskAmount: z.coerce.number().optional(),
+  stopLossPrice: z.coerce.number().optional(),
+  takeProfitPrice: z.coerce.number().optional(),
+  riskAmount: z.coerce.number().min(0, 'Invalid risk amount').default(50),
+  targetProfit: z.coerce.number().optional(),
   
+  realizedPnl: z.coerce.number().optional(),
   commission: z.coerce.number().default(0),
   swap: z.coerce.number().default(0),
   
@@ -75,61 +73,80 @@ export default function AddTradePage() {
       confidence: 5,
       commission: 0,
       swap: 0,
+      riskAmount: 50,
+      targetProfit: 200,
+      realizedPnl: 200,
+      lotSize: 0.1,
+      strategy: 'Breakout',
       entryDate: new Date().toISOString().split('T')[0],
       entryTime: new Date().toTimeString().split(' ')[0].substring(0, 5),
     }
   });
 
+  const selectedAccountName = form.watch('account');
+  const activeAccount = accounts.find(a => a.name === selectedAccountName || a.id === selectedAccountName) || accounts[0];
+  const accountBalance = activeAccount?.current_balance || activeAccount?.initial_balance || 100000;
+
   const entryPrice = form.watch('entryPrice');
   const exitPrice = form.watch('exitPrice');
-  const lotSize = form.watch('lotSize');
-  const direction = form.watch('direction');
-  const stopLoss = form.watch('stopLoss');
-  const takeProfit = form.watch('takeProfit');
+  const stopLossPrice = form.watch('stopLossPrice');
+  const takeProfitPrice = form.watch('takeProfitPrice');
   const riskAmount = form.watch('riskAmount');
-  const commission = form.watch('commission');
-  const swap = form.watch('swap');
+  const targetProfit = form.watch('targetProfit');
+  const realizedPnl = form.watch('realizedPnl');
+  const commission = form.watch('commission') || 0;
+  const swap = form.watch('swap') || 0;
 
+  // Mathematically exact Risk, R:R, Gross P&L, Net P&L, and R Multiple calculations
   const calculatedValues = useMemo(() => {
     let riskPercentage = 0;
     let plannedRR = 0;
-    let pnl = 0;
+    let grossPnl = 0;
     let netPnl = 0;
     let rMultiple = 0;
 
-    const accountBalance = 100000;
+    const risk$ = typeof riskAmount === 'number' && !isNaN(riskAmount) ? riskAmount : 0;
+    const target$ = typeof targetProfit === 'number' && !isNaN(targetProfit) ? targetProfit : 0;
 
-    if (riskAmount) {
-      riskPercentage = (riskAmount / accountBalance) * 100;
+    // 1. Risk Percentage calculation
+    if (risk$ > 0 && accountBalance > 0) {
+      riskPercentage = (risk$ / accountBalance) * 100;
     }
 
-    if (entryPrice && stopLoss && takeProfit) {
-      const risk = Math.abs(entryPrice - stopLoss);
-      const reward = Math.abs(takeProfit - entryPrice);
-      if (risk > 0) plannedRR = reward / risk;
+    // 2. Planned R:R calculation
+    if (risk$ > 0 && target$ > 0) {
+      // Direct dollar ratio: e.g. Stop Loss $50, Profit $200 -> 1:4.00
+      plannedRR = target$ / risk$;
+    } else if (entryPrice && stopLossPrice && takeProfitPrice) {
+      // Price-based ratio: |TP - Entry| / |Entry - SL|
+      const riskDist = Math.abs(entryPrice - stopLossPrice);
+      const rewardDist = Math.abs(takeProfitPrice - entryPrice);
+      if (riskDist > 0) plannedRR = rewardDist / riskDist;
     }
 
-    if (entryPrice && exitPrice && lotSize) {
-      const diff = direction === 'Long' 
-        ? exitPrice - entryPrice 
-        : entryPrice - exitPrice;
-      
-      pnl = diff * lotSize * 100000;
-      netPnl = pnl - (commission || 0) + (swap || 0);
+    // 3. Realized Gross P&L
+    if (typeof realizedPnl === 'number' && !isNaN(realizedPnl)) {
+      grossPnl = realizedPnl;
+    } else if (target$ > 0) {
+      grossPnl = target$;
+    }
 
-      if (riskAmount && riskAmount > 0) {
-        rMultiple = pnl / riskAmount;
-      }
+    // 4. Net P&L (Gross PnL - Commission + Swap)
+    netPnl = grossPnl - commission + swap;
+
+    // 5. R Multiple (Net PnL / Risk $)
+    if (risk$ > 0) {
+      rMultiple = netPnl / risk$;
     }
 
     return {
       riskPercentage,
       plannedRR,
-      pnl,
+      grossPnl,
       netPnl,
       rMultiple
     };
-  }, [entryPrice, exitPrice, lotSize, direction, stopLoss, takeProfit, riskAmount, commission, swap]);
+  }, [accountBalance, entryPrice, stopLossPrice, takeProfitPrice, riskAmount, targetProfit, realizedPnl, commission, swap]);
 
   const addTag = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && tagInput.trim()) {
@@ -158,15 +175,15 @@ export default function AddTradePage() {
       exit_price: data.exitPrice,
       lot_size: data.lotSize,
       strategy: data.strategy,
-      stop_loss: data.stopLoss,
-      take_profit: data.takeProfit,
+      stop_loss: data.stopLossPrice,
+      take_profit: data.takeProfitPrice,
       risk_amount: data.riskAmount,
       commission: data.commission,
       swap: data.swap,
-      pnl: calculatedValues.pnl,
+      pnl: calculatedValues.grossPnl,
       net_pnl: calculatedValues.netPnl,
       r_multiple: calculatedValues.rMultiple,
-      status: data.exitPrice ? 'closed' : 'open',
+      status: (data.exitPrice || data.realizedPnl !== undefined) ? 'closed' : 'open',
       confidence: data.confidence,
       emotion_before: data.emotionBefore?.toLowerCase() as any,
       emotion_during: data.emotionDuring?.toLowerCase() as any,
@@ -179,7 +196,7 @@ export default function AddTradePage() {
       tags: tags,
     });
 
-    toast.success(`Trade for ${data.symbol.toUpperCase()} saved!`);
+    toast.success(`Trade for ${data.symbol.toUpperCase()} logged! (Net P&L: ${calculatedValues.netPnl >= 0 ? '+' : ''}$${calculatedValues.netPnl.toFixed(2)})`);
     router.push('/trades');
   };
 
@@ -195,16 +212,18 @@ export default function AddTradePage() {
         <Button variant="ghost" size="icon" onClick={() => router.back()}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <h1 className="text-3xl font-bold tracking-tight">Add New Trade</h1>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Log New Trade</h1>
+          <p className="text-sm text-muted-foreground">Accurate position sizing, risk/reward calculations, and execution journal.</p>
+        </div>
       </div>
 
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Card 1: Trade Info */}
           <Card>
             <CardHeader>
-              <CardTitle>Trade Information</CardTitle>
+              <CardTitle>Trade Setup</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -225,7 +244,7 @@ export default function AddTradePage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Symbol</Label>
-                  <Input placeholder="e.g. EURUSD" {...form.register('symbol')} />
+                  <Input placeholder="e.g. EURUSD, XAUUSD, BTC" {...form.register('symbol')} />
                   {form.formState.errors.symbol && <p className="text-sm text-red-500">{form.formState.errors.symbol.message}</p>}
                 </div>
               </div>
@@ -234,16 +253,16 @@ export default function AddTradePage() {
                 <Label>Direction</Label>
                 <RadioGroup 
                   defaultValue="Long" 
-                  onValueChange={(val) => setValue('direction', val as 'Long' | 'Short')}
+                  onValueChange={(val) => form.setValue('direction', val as 'Long' | 'Short')}
                   className="flex gap-4"
                 >
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="Long" id="long" />
-                    <Label htmlFor="long" className="text-blue-500 font-medium">Long</Label>
+                    <Label htmlFor="long" className="text-blue-500 font-semibold cursor-pointer">Long (Buy)</Label>
                   </div>
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="Short" id="short" />
-                    <Label htmlFor="short" className="text-orange-500 font-medium">Short</Label>
+                    <Label htmlFor="short" className="text-orange-500 font-semibold cursor-pointer">Short (Sell)</Label>
                   </div>
                 </RadioGroup>
               </div>
@@ -273,92 +292,117 @@ export default function AddTradePage() {
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label>Entry Price</Label>
-                  <Input type="number" step="0.00001" {...form.register('entryPrice')} />
+                  <Input type="number" step="any" placeholder="4300.00" {...form.register('entryPrice')} />
+                  {form.formState.errors.entryPrice && <p className="text-xs text-red-500">{form.formState.errors.entryPrice.message}</p>}
                 </div>
                 <div className="space-y-2">
                   <Label>Exit Price</Label>
-                  <Input type="number" step="0.00001" {...form.register('exitPrice')} />
+                  <Input type="number" step="any" placeholder="4320.00" {...form.register('exitPrice')} />
                 </div>
                 <div className="space-y-2">
                   <Label>Lot Size</Label>
-                  <Input type="number" step="0.01" {...form.register('lotSize')} />
+                  <Input type="number" step="any" placeholder="0.10" {...form.register('lotSize')} />
                 </div>
               </div>
 
               <div className="space-y-2">
                 <Label>Strategy</Label>
-                <Input placeholder="e.g. Breakout" {...form.register('strategy')} />
+                <Input placeholder="e.g. Breakout, Trend Follow, Support/Resistance" {...form.register('strategy')} />
               </div>
             </CardContent>
           </Card>
 
           <div className="space-y-6">
-            {/* Card 2: Risk Management */}
+            {/* Card 2: Risk Management & R:R */}
             <Card>
               <CardHeader>
-                <CardTitle>Risk Management</CardTitle>
+                <CardTitle>Risk Management &amp; Planned R:R</CardTitle>
+                <CardDescription>Enter dollar risk and profit target to calculate exact R:R.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Stop Loss</Label>
-                    <Input type="number" step="0.00001" {...form.register('stopLoss')} />
+                    <Label className="text-red-500 font-medium">Risk / Stop Loss ($)</Label>
+                    <Input type="number" step="any" placeholder="50.00" {...form.register('riskAmount')} />
                   </div>
                   <div className="space-y-2">
-                    <Label>Take Profit</Label>
-                    <Input type="number" step="0.00001" {...form.register('takeProfit')} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Risk ($)</Label>
-                    <Input type="number" step="0.01" {...form.register('riskAmount')} />
+                    <Label className="text-green-500 font-medium">Target Profit ($)</Label>
+                    <Input type="number" step="any" placeholder="200.00" {...form.register('targetProfit')} />
                   </div>
                 </div>
 
-                <div className="bg-muted/50 p-4 rounded-md grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Stop Loss Price (Optional)</Label>
+                    <Input type="number" step="any" placeholder="4290.00" {...form.register('stopLossPrice')} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Take Profit Price (Optional)</Label>
+                    <Input type="number" step="any" placeholder="4350.00" {...form.register('takeProfitPrice')} />
+                  </div>
+                </div>
+
+                <div className="bg-muted/50 p-4 rounded-xl grid grid-cols-2 gap-4 border">
                   <div>
-                    <div className="text-sm text-muted-foreground">Risk %</div>
-                    <div className="text-xl font-bold">{calculatedValues.riskPercentage.toFixed(2)}%</div>
+                    <div className="text-xs text-muted-foreground">Account Risk %</div>
+                    <div className="text-xl font-bold text-foreground">{calculatedValues.riskPercentage.toFixed(2)}%</div>
                   </div>
                   <div>
-                    <div className="text-sm text-muted-foreground">Planned R:R</div>
-                    <div className="text-xl font-bold">1:{calculatedValues.plannedRR.toFixed(2)}</div>
+                    <div className="text-xs text-muted-foreground">Planned R:R</div>
+                    <div className="text-xl font-bold text-primary">1:{calculatedValues.plannedRR.toFixed(2)}</div>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Card 3: Result */}
+            {/* Card 3: Realized Result & P&L */}
             <Card>
               <CardHeader>
-                <CardTitle>Result</CardTitle>
+                <CardTitle>Trade Result &amp; P&L</CardTitle>
+                <CardDescription>Direct dollar profit or loss realized on this trade.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="font-semibold">Realized Profit / Loss ($)</Label>
+                  <div className="relative">
+                    <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input 
+                      type="number" 
+                      step="any" 
+                      placeholder="e.g. 200 for profit, -50 for loss" 
+                      className="pl-9 font-mono text-base font-semibold"
+                      {...form.register('realizedPnl')} 
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">Enter positive for profit (e.g. 200), negative for loss (e.g. -50).</p>
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Commission ($)</Label>
-                    <Input type="number" step="0.01" {...form.register('commission')} />
+                    <Label className="text-xs text-muted-foreground">Commission ($)</Label>
+                    <Input type="number" step="any" placeholder="0.00" {...form.register('commission')} />
                   </div>
                   <div className="space-y-2">
-                    <Label>Swap ($)</Label>
-                    <Input type="number" step="0.01" {...form.register('swap')} />
+                    <Label className="text-xs text-muted-foreground">Swap ($)</Label>
+                    <Input type="number" step="any" placeholder="0.00" {...form.register('swap')} />
                   </div>
                 </div>
 
                 <div className={cn(
-                  "p-4 rounded-md grid grid-cols-3 gap-4 border",
-                  calculatedValues.netPnl > 0 ? "bg-green-500/10 border-green-500/20 text-green-600 dark:text-green-400" : 
-                  calculatedValues.netPnl < 0 ? "bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400" : "bg-muted/50"
+                  "p-4 rounded-xl grid grid-cols-3 gap-3 border transition-colors",
+                  calculatedValues.netPnl > 0 ? "bg-green-500/10 border-green-500/30 text-green-500" : 
+                  calculatedValues.netPnl < 0 ? "bg-red-500/10 border-red-500/30 text-red-500" : "bg-muted/50 text-foreground"
                 )}>
                   <div>
-                    <div className="text-sm opacity-80">Gross P&L</div>
-                    <div className="text-lg font-bold">${calculatedValues.pnl.toFixed(2)}</div>
+                    <div className="text-xs opacity-80">Gross P&L</div>
+                    <div className="text-lg font-bold">${calculatedValues.grossPnl.toFixed(2)}</div>
                   </div>
                   <div>
-                    <div className="text-sm opacity-80">Net P&L</div>
-                    <div className="text-xl font-bold">${calculatedValues.netPnl.toFixed(2)}</div>
+                    <div className="text-xs opacity-80">Net P&L</div>
+                    <div className="text-lg font-bold">${calculatedValues.netPnl.toFixed(2)}</div>
                   </div>
                   <div>
-                    <div className="text-sm opacity-80">R Multiple</div>
+                    <div className="text-xs opacity-80">R Multiple</div>
                     <div className="text-lg font-bold">{calculatedValues.rMultiple > 0 ? '+' : ''}{calculatedValues.rMultiple.toFixed(2)}R</div>
                   </div>
                 </div>
@@ -371,7 +415,7 @@ export default function AddTradePage() {
           {/* Card 4: Psychology */}
           <Card>
             <CardHeader>
-              <CardTitle>Psychology</CardTitle>
+              <CardTitle>Psychology &amp; Execution State</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid grid-cols-3 gap-4">
@@ -428,7 +472,7 @@ export default function AddTradePage() {
           {/* Card 5: Review Notes */}
           <Card>
             <CardHeader>
-              <CardTitle>Review Notes</CardTitle>
+              <CardTitle>Trade Journal &amp; Lessons</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -438,8 +482,10 @@ export default function AddTradePage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Why did I exit?</Label>
-                  <Textarea className="h-20" placeholder="Hit TP, trailing stop..." {...form.register('exitReason')} />
+                  <Textarea className="h-20" placeholder="Hit target, trail stop..." {...form.register('exitReason')} />
                 </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>What went well?</Label>
                   <Textarea className="h-20" placeholder="Good execution..." {...form.register('wentWell')} />
@@ -486,12 +532,12 @@ export default function AddTradePage() {
               <div className="border-2 border-dashed rounded-lg p-10 flex flex-col items-center justify-center text-muted-foreground hover:bg-muted/50 cursor-pointer transition-colors">
                 <UploadCloud className="w-10 h-10 mb-2" />
                 <p className="font-medium text-foreground">Before Trade</p>
-                <p className="text-sm">Click or drag & drop</p>
+                <p className="text-sm">Click or drag &amp; drop</p>
               </div>
               <div className="border-2 border-dashed rounded-lg p-10 flex flex-col items-center justify-center text-muted-foreground hover:bg-muted/50 cursor-pointer transition-colors">
                 <UploadCloud className="w-10 h-10 mb-2" />
                 <p className="font-medium text-foreground">After Trade</p>
-                <p className="text-sm">Click or drag & drop</p>
+                <p className="text-sm">Click or drag &amp; drop</p>
               </div>
             </div>
           </CardContent>
@@ -500,7 +546,6 @@ export default function AddTradePage() {
         {/* Floating Footer */}
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-background/80 backdrop-blur-md border-t flex justify-end gap-4 md:px-8 lg:px-12 z-10">
           <Button variant="outline" type="button" onClick={() => router.back()}>Cancel</Button>
-          <Button variant="secondary" type="button">Save as Draft</Button>
           <Button type="submit">
             <Save className="w-4 h-4 mr-2" /> Save Trade
           </Button>
