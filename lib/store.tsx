@@ -1,6 +1,6 @@
 "use client"
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react"
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react"
 import { Account, Trade, Goal, JournalEntry } from "@/types"
 import { createClient } from "@/lib/supabase/client"
 
@@ -17,8 +17,8 @@ function generateUUID(): string {
 
 export const INITIAL_ACCOUNTS: Account[] = [
   {
-    id: "a0000000-0000-4000-8000-000000000001",
-    user_id: "u0000000-0000-4000-8000-000000000001",
+    id: "00000000-0000-4000-8000-000000000001",
+    user_id: "00000000-0000-4000-8000-000000000001",
     name: "FTMO 100K Challenge",
     type: "prop_firm",
     broker: "Eightcap",
@@ -32,52 +32,17 @@ export const INITIAL_ACCOUNTS: Account[] = [
     status: "active",
     created_at: new Date(Date.now() - 30 * 86400000).toISOString(),
   },
-  {
-    id: "a0000000-0000-4000-8000-000000000002",
-    user_id: "u0000000-0000-4000-8000-000000000001",
-    name: "Personal 25K",
-    type: "personal",
-    broker: "Interactive Brokers",
-    currency: "USD",
-    initial_balance: 25000,
-    current_balance: 24150,
-    max_total_loss: 5000,
-    daily_loss_limit: 1000,
-    status: "active",
-    created_at: new Date(Date.now() - 60 * 86400000).toISOString(),
-  },
-  {
-    id: "a0000000-0000-4000-8000-000000000003",
-    user_id: "u0000000-0000-4000-8000-000000000001",
-    name: "Demo Strategy Tester",
-    type: "demo",
-    broker: "OANDA",
-    currency: "USD",
-    initial_balance: 10000,
-    current_balance: 11200,
-    profit_target: 1000,
-    max_total_loss: 1000,
-    daily_loss_limit: 500,
-    status: "passed",
-    created_at: new Date(Date.now() - 15 * 86400000).toISOString(),
-  },
 ]
-
-const now = new Date()
-const formatDateStr = (daysAgo: number) => {
-  const d = new Date(now.getTime() - daysAgo * 86400000)
-  return d.toISOString()
-}
 
 export const INITIAL_TRADES: Trade[] = [
   {
-    id: "t0000000-0000-4000-8000-000000000001",
-    user_id: "u0000000-0000-4000-8000-000000000001",
-    account_id: "a0000000-0000-4000-8000-000000000001",
+    id: "00000000-0000-4000-8000-000000000002",
+    user_id: "00000000-0000-4000-8000-000000000001",
+    account_id: "00000000-0000-4000-8000-000000000001",
     symbol: "EURUSD",
     direction: "long",
-    entry_date: formatDateStr(1),
-    exit_date: formatDateStr(1),
+    entry_date: new Date(Date.now() - 86400000).toISOString(),
+    exit_date: new Date(Date.now() - 86400000).toISOString(),
     entry_price: 1.0845,
     exit_price: 1.0890,
     lot_size: 2.0,
@@ -102,105 +67,38 @@ export const INITIAL_TRADES: Trade[] = [
     lesson_learned: "Breakout setups with volume have higher follow-through",
     tags: ["London", "Breakout", "EURUSD"],
     screenshots: [],
-    created_at: formatDateStr(1),
-  },
-  {
-    id: "t0000000-0000-4000-8000-000000000002",
-    user_id: "u0000000-0000-4000-8000-000000000001",
-    account_id: "a0000000-0000-4000-8000-000000000001",
-    symbol: "GBPUSD",
-    direction: "short",
-    entry_date: formatDateStr(2),
-    exit_date: formatDateStr(2),
-    entry_price: 1.2650,
-    exit_price: 1.2680,
-    lot_size: 1.5,
-    stop_loss: 1.2680,
-    take_profit: 1.2580,
-    risk_amount: 450,
-    risk_percent: 0.45,
-    planned_rr: 2.3,
-    pnl: -450,
-    net_pnl: -465,
-    commission: 15,
-    r_multiple: -1.0,
-    strategy: "Reversal",
-    status: "closed",
-    emotion_before: "anxious",
-    emotion_during: "frustrated",
-    emotion_after: "frustrated",
-    confidence: 5,
-    entry_reason: "Attempted to catch top of NY push",
-    exit_reason: "Stopped out by CPI spike",
-    what_went_wrong: "Traded right into high-impact news",
-    lesson_learned: "Never open new positions 15 min before red folder events",
-    tags: ["NY Session", "News", "Mistake"],
-    screenshots: [],
-    created_at: formatDateStr(2),
-  },
-  {
-    id: "t0000000-0000-4000-8000-000000000003",
-    user_id: "u0000000-0000-4000-8000-000000000001",
-    account_id: "a0000000-0000-4000-8000-000000000001",
-    symbol: "XAUUSD",
-    direction: "long",
-    entry_date: formatDateStr(3),
-    exit_date: formatDateStr(3),
-    entry_price: 2410.5,
-    exit_price: 2428.0,
-    lot_size: 1.0,
-    stop_loss: 2402.0,
-    take_profit: 2435.0,
-    risk_amount: 850,
-    risk_percent: 0.85,
-    planned_rr: 2.8,
-    pnl: 1750,
-    net_pnl: 1720,
-    commission: 30,
-    r_multiple: 2.0,
-    strategy: "Trend Follow",
-    status: "closed",
-    emotion_before: "calm",
-    emotion_during: "focused",
-    emotion_after: "confident",
-    confidence: 9,
-    entry_reason: "Daily trend continuation bounce from 50 EMA",
-    exit_reason: "Trailing stop hit at $2428",
-    what_went_well: "Let winners run with trailing stop",
-    tags: ["Gold", "Trend", "BigWin"],
-    screenshots: [],
-    created_at: formatDateStr(3),
+    created_at: new Date(Date.now() - 86400000).toISOString(),
   },
 ]
 
 export const INITIAL_GOALS: Goal[] = [
   {
-    id: "g0000000-0000-4000-8000-000000000001",
-    user_id: "u0000000-0000-4000-8000-000000000001",
-    account_id: "a0000000-0000-4000-8000-000000000001",
+    id: "00000000-0000-4000-8000-000000000003",
+    user_id: "00000000-0000-4000-8000-000000000001",
+    account_id: "00000000-0000-4000-8000-000000000001",
     title: "Monthly Profit Goal",
     type: "profit",
     target_value: 10000,
     current_value: 3240,
     period: "monthly",
-    start_date: formatDateStr(30).slice(0, 10),
-    end_date: formatDateStr(-1).slice(0, 10),
+    start_date: new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10),
+    end_date: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
     status: "active",
     description: "Hit 10% target on FTMO Challenge",
-    created_at: formatDateStr(30),
+    created_at: new Date().toISOString(),
   },
 ]
 
 export const INITIAL_JOURNAL: JournalEntry[] = [
   {
-    id: "j0000000-0000-4000-8000-000000000001",
-    user_id: "u0000000-0000-4000-8000-000000000001",
-    title: "London Session Gold & EURUSD Execution",
-    content: "Clean execution today on EURUSD breakout and Gold continuation. Stood completely calm during the 15-minute pullback.",
+    id: "00000000-0000-4000-8000-000000000004",
+    user_id: "00000000-0000-4000-8000-000000000001",
+    title: "London Session Execution",
+    content: "Clean execution today on EURUSD breakout. Stood completely calm during the 15-minute pullback.",
     mood: "great",
     tags: ["London", "Execution", "Discipline"],
-    entry_date: formatDateStr(1).slice(0, 10),
-    created_at: formatDateStr(1),
+    entry_date: new Date().toISOString().slice(0, 10),
+    created_at: new Date().toISOString(),
   },
 ]
 
@@ -272,9 +170,9 @@ const DEFAULT_PREFERENCES: UserPreferences = {
   gemini_api_key: DEFAULT_GEMINI_KEY,
 }
 
-const STORAGE_KEY = "tradevault_master_v5"
-const PROFILE_KEY = "tradevault_profile_v5"
-const PREFS_KEY = "tradevault_prefs_v5"
+const STORAGE_KEY = "tradevault_master_v6"
+const PROFILE_KEY = "tradevault_profile_v6"
+const PREFS_KEY = "tradevault_prefs_v6"
 
 interface StoreContextType {
   accounts: Account[]
@@ -342,7 +240,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  // 1. Synchronous Mount: Load from localStorage instantly
+  // 1. Initial Load (Synchronous from LocalStorage + Cloud Sync)
   useEffect(() => {
     try {
       const savedData = localStorage.getItem(STORAGE_KEY)
@@ -371,10 +269,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     } catch (e) {
       console.error("Local storage load error:", e)
     } finally {
-      setIsLoaded(true) // Instant UI load
+      setIsLoaded(true)
     }
 
-    // 2. Non-blocking Background Sync with Supabase
+    // 2. Universal Supabase Cloud Sync
     async function syncCloud() {
       try {
         const { data: { user } } = await supabase.auth.getUser()
@@ -387,27 +285,25 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             avatar_url: user.user_metadata?.avatar_url || prev.avatar_url,
           }))
 
-          const [accRes, tradeRes, goalRes, journalRes] = await Promise.all([
-            supabase.from("accounts").select("*").eq("user_id", user.id),
-            supabase.from("trades").select("*").eq("user_id", user.id),
-            supabase.from("goals").select("*").eq("user_id", user.id),
-            supabase.from("journal_entries").select("*").eq("user_id", user.id),
-          ])
+          const res = await fetch("/api/sync", {
+            headers: { "x-user-id": user.id },
+          })
 
-          // ONLY update from Supabase if Supabase returned non-empty arrays!
-          // NEVER wipe out local accounts/trades if Supabase returned 0 rows!
-          if (accRes.data && accRes.data.length > 0) {
-            setAccounts(accRes.data)
-            setSelectedAccountId((prev) => (prev === "all" ? accRes.data[0].id : prev))
-          }
-          if (tradeRes.data && tradeRes.data.length > 0) {
-            setTrades(tradeRes.data)
-          }
-          if (goalRes.data && goalRes.data.length > 0) {
-            setGoals(goalRes.data)
-          }
-          if (journalRes.data && journalRes.data.length > 0) {
-            setJournalEntries(journalRes.data)
+          if (res.ok) {
+            const cloud = await res.json()
+            if (cloud.accounts && cloud.accounts.length > 0) {
+              setAccounts(cloud.accounts)
+              setSelectedAccountId((prev) => (prev === "all" ? cloud.accounts[0].id : prev))
+            }
+            if (cloud.trades && cloud.trades.length > 0) {
+              setTrades(cloud.trades)
+            }
+            if (cloud.goals && cloud.goals.length > 0) {
+              setGoals(cloud.goals)
+            }
+            if (cloud.journalEntries && cloud.journalEntries.length > 0) {
+              setJournalEntries(cloud.journalEntries)
+            }
           }
         }
       } catch (err) {
@@ -495,20 +391,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) {
         newAcc.user_id = user.id
-        supabase.from("accounts").insert({
-          id: newAcc.id,
-          user_id: user.id,
-          name: newAcc.name,
-          type: newAcc.type,
-          broker: newAcc.broker,
-          currency: newAcc.currency,
-          initial_balance: newAcc.initial_balance,
-          current_balance: newAcc.current_balance,
-          profit_target: newAcc.profit_target,
-          max_total_loss: newAcc.max_total_loss,
-          daily_loss_limit: newAcc.daily_loss_limit,
-          status: newAcc.status,
-        }).catch((err) => console.warn("Supabase account insert note:", err))
+        fetch("/api/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-user-id": user.id },
+          body: JSON.stringify({ action: "save_account", payload: newAcc }),
+        }).catch((err) => console.warn("Account sync note:", err))
       }
     })
 
@@ -516,8 +403,22 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }
 
   const updateAccount = (id: string, updates: Partial<Account>) => {
-    setAccounts((prev) => prev.map((a) => (a.id === id ? { ...a, ...updates } : a)))
-    supabase.from("accounts").update(updates).eq("id", id).catch((err) => console.warn("Supabase account update note:", err))
+    setAccounts((prev) => {
+      const next = prev.map((a) => (a.id === id ? { ...a, ...updates } : a))
+      const updated = next.find((a) => a.id === id)
+      if (updated) {
+        supabase.auth.getUser().then(({ data: { user } }) => {
+          if (user) {
+            fetch("/api/sync", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "x-user-id": user.id },
+              body: JSON.stringify({ action: "save_account", payload: updated }),
+            }).catch((err) => console.warn("Update account sync note:", err))
+          }
+        })
+      }
+      return next
+    })
   }
 
   const deleteAccount = (id: string) => {
@@ -529,9 +430,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setSelectedAccountId("all")
     }
 
-    supabase.from("accounts").delete().eq("id", id).catch((err) => console.warn("Supabase account delete note:", err))
-    supabase.from("trades").delete().eq("account_id", id).catch((err) => console.warn("Supabase trades delete note:", err))
-    supabase.from("goals").delete().eq("account_id", id).catch((err) => console.warn("Supabase goals delete note:", err))
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        fetch("/api/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-user-id": user.id },
+          body: JSON.stringify({ action: "delete_account", payload: { id } }),
+        }).catch((err) => console.warn("Delete account sync note:", err))
+      }
+    })
   }
 
   const addTrade = (data: Partial<Trade> & { symbol: string; direction: "long" | "short"; lot_size: number; entry_price: number }): Trade => {
@@ -573,38 +480,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) {
         newTrade.user_id = user.id
-        supabase.from("trades").insert({
-          id: newTrade.id,
-          user_id: user.id,
-          account_id: newTrade.account_id,
-          symbol: newTrade.symbol,
-          direction: newTrade.direction,
-          entry_date: newTrade.entry_date,
-          exit_date: newTrade.exit_date,
-          entry_price: newTrade.entry_price,
-          exit_price: newTrade.exit_price,
-          lot_size: newTrade.lot_size,
-          stop_loss: newTrade.stop_loss,
-          take_profit: newTrade.take_profit,
-          risk_amount: newTrade.risk_amount,
-          commission: newTrade.commission,
-          swap: newTrade.swap,
-          pnl: newTrade.pnl,
-          net_pnl: newTrade.net_pnl,
-          r_multiple: newTrade.r_multiple,
-          strategy: newTrade.strategy,
-          status: newTrade.status,
-          emotion_before: newTrade.emotion_before,
-          emotion_during: newTrade.emotion_during,
-          emotion_after: newTrade.emotion_after,
-          confidence: newTrade.confidence,
-          entry_reason: newTrade.entry_reason,
-          exit_reason: newTrade.exit_reason,
-          what_went_well: newTrade.what_went_well,
-          what_went_wrong: newTrade.what_went_wrong,
-          lesson_learned: newTrade.lesson_learned,
-          tags: newTrade.tags,
-        }).catch((err) => console.warn("Supabase trade insert note:", err))
+        fetch("/api/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-user-id": user.id },
+          body: JSON.stringify({ action: "save_trade", payload: newTrade }),
+        }).catch((err) => console.warn("Trade sync note:", err))
       }
     })
 
@@ -613,7 +493,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const deleteTrade = (id: string) => {
     setTrades((prev) => prev.filter((t) => t.id !== id))
-    supabase.from("trades").delete().eq("id", id).catch((err) => console.warn("Supabase trade delete note:", err))
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        fetch("/api/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-user-id": user.id },
+          body: JSON.stringify({ action: "delete_trade", payload: { id } }),
+        }).catch((err) => console.warn("Delete trade sync note:", err))
+      }
+    })
   }
 
   const addGoal = (data: Partial<Goal> & { title: string; target_value: number; type: any }): Goal => {
@@ -639,19 +527,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) {
         newGoal.user_id = user.id
-        supabase.from("goals").insert({
-          id: newGoal.id,
-          user_id: user.id,
-          account_id: newGoal.account_id,
-          title: newGoal.title,
-          type: newGoal.type,
-          target_value: newGoal.target_value,
-          current_value: newGoal.current_value,
-          period: newGoal.period,
-          start_date: newGoal.start_date,
-          end_date: newGoal.end_date,
-          status: newGoal.status,
-        }).catch((err) => console.warn("Supabase goal insert note:", err))
+        fetch("/api/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-user-id": user.id },
+          body: JSON.stringify({ action: "save_goal", payload: newGoal }),
+        }).catch((err) => console.warn("Goal sync note:", err))
       }
     })
 
@@ -660,7 +540,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const deleteGoal = (id: string) => {
     setGoals((prev) => prev.filter((g) => g.id !== id))
-    supabase.from("goals").delete().eq("id", id).catch((err) => console.warn("Supabase goal delete note:", err))
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        fetch("/api/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-user-id": user.id },
+          body: JSON.stringify({ action: "delete_goal", payload: { id } }),
+        }).catch((err) => console.warn("Delete goal sync note:", err))
+      }
+    })
   }
 
   const addJournalEntry = (data: Partial<JournalEntry> & { title: string; content: string }): JournalEntry => {
@@ -682,15 +570,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) {
         newEntry.user_id = user.id
-        supabase.from("journal_entries").insert({
-          id: newEntry.id,
-          user_id: user.id,
-          title: newEntry.title,
-          content: newEntry.content,
-          mood: newEntry.mood,
-          tags: newEntry.tags,
-          entry_date: newEntry.entry_date,
-        }).catch((err) => console.warn("Supabase journal insert note:", err))
+        fetch("/api/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-user-id": user.id },
+          body: JSON.stringify({ action: "save_journal", payload: newEntry }),
+        }).catch((err) => console.warn("Journal sync note:", err))
       }
     })
 
@@ -699,7 +583,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const deleteJournalEntry = (id: string) => {
     setJournalEntries((prev) => prev.filter((j) => j.id !== id))
-    supabase.from("journal_entries").delete().eq("id", id).catch((err) => console.warn("Supabase journal delete note:", err))
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        fetch("/api/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-user-id": user.id },
+          body: JSON.stringify({ action: "delete_journal", payload: { id } }),
+        }).catch((err) => console.warn("Delete journal sync note:", err))
+      }
+    })
   }
 
   const resetToDemoData = () => {
@@ -716,6 +608,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setGoals([])
     setJournalEntries([])
     setSelectedAccountId("all")
+
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        fetch("/api/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-user-id": user.id },
+          body: JSON.stringify({ action: "wipe_all", payload: {} }),
+        }).catch((err) => console.warn("Wipe all sync note:", err))
+      }
+    })
   }
 
   return (
