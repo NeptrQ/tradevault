@@ -3,14 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { TrendingUp, Eye, EyeOff, Loader2 } from "lucide-react";
+import { TrendingUp, Eye, EyeOff, Loader2, Mail, Lock, User } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
-
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -43,14 +38,15 @@ export default function RegisterPage() {
   const strength = getPasswordStrength(formData.password);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const value = e.target.type === "checkbox" ? e.target.checked : e.target.value;
+    setFormData({ ...formData, [e.target.name]: value });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!formData.termsAccepted) {
-      toast.error("You must accept the terms and conditions.");
+      toast.error("Please accept the terms and conditions.");
       return;
     }
 
@@ -59,9 +55,14 @@ export default function RegisterPage() {
       return;
     }
 
+    if (formData.password.length < 6) {
+      toast.error("Password must be at least 6 characters.");
+      return;
+    }
+
     setIsLoading(true);
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email: formData.email,
       password: formData.password,
       options: {
@@ -76,170 +77,163 @@ export default function RegisterPage() {
     if (error) {
       toast.error(error.message || "Failed to create account.");
     } else {
-      toast.success("Check your email to confirm your account.");
-      router.push("/login");
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("tradevault_master_v6");
+      }
+      if (data.session) {
+        toast.success("Account created successfully!");
+        router.push("/dashboard");
+        router.refresh();
+      } else {
+        toast.success("Account registered! Please sign in with your credentials.");
+        router.push("/login");
+      }
     }
   };
 
   return (
     <div className="flex min-h-screen bg-background">
       {/* Left Panel - Branding */}
-      <div className="hidden lg:flex w-1/2 flex-col justify-between bg-zinc-900 p-12 text-white">
+      <div className="hidden lg:flex w-1/2 flex-col justify-between bg-card border-r border-border p-12 text-foreground">
         <div className="flex items-center gap-2">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
-            <TrendingUp className="h-6 w-6 text-primary-foreground" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+            <TrendingUp className="h-6 w-6" />
           </div>
-          <span className="text-2xl font-bold">TradeVault</span>
+          <span className="text-2xl font-bold text-foreground">TradeVault</span>
         </div>
         <div>
           <h1 className="text-4xl font-bold tracking-tight mb-4">
             Master your trading psychology.
           </h1>
-          <p className="text-zinc-400 text-lg">
-            Track, analyze, and improve your trading performance with our advanced journaling platform.
+          <p className="text-muted-foreground text-lg">
+            Track, analyze, and improve your trading performance with our advanced quantitative journaling platform.
           </p>
         </div>
-        <div className="text-sm text-zinc-500">
-          © {new Date().getFullYear()} TradeVault. All rights reserved.
+        <div className="text-sm text-muted-foreground">
+          &copy; {new Date().getFullYear()} TradeVault. All rights reserved.
         </div>
       </div>
 
       {/* Right Panel - Register Form */}
-      <div className="flex w-full lg:w-1/2 flex-col justify-center px-8 sm:px-16 xl:px-24">
-        <div className="mx-auto w-full max-w-md space-y-8">
-          <div className="text-center lg:text-left">
+      <div className="flex flex-1 items-center justify-center p-6 sm:p-12">
+        <div className="w-full max-w-md space-y-6">
+          <div className="space-y-2 text-center lg:text-left">
             <h2 className="text-3xl font-bold tracking-tight">Create an account</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Enter your details below to get started
+            <p className="text-sm text-muted-foreground">
+              Enter your details below to create your trading journal account
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="fullName">Full Name</Label>
-                <Input
-                  id="fullName"
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Full Name</label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <input
+                  type="text"
                   name="fullName"
-                  placeholder="John Doe"
-                  required
+                  placeholder="Alex Vance"
                   value={formData.fullName}
                   onChange={handleChange}
-                  disabled={isLoading}
+                  required
+                  className="w-full bg-muted border border-border rounded-lg pl-10 pr-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition"
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  name="email"
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Email</label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <input
                   type="email"
-                  placeholder="m@example.com"
-                  required
+                  name="email"
+                  placeholder="name@example.com"
                   value={formData.email}
                   onChange={handleChange}
-                  disabled={isLoading}
+                  required
+                  className="w-full bg-muted border border-border rounded-lg pl-10 pr-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition"
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    name="password"
-                    type={showPassword ? "text" : "password"}
-                    required
-                    value={formData.password}
-                    onChange={handleChange}
-                    disabled={isLoading}
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                    onClick={() => setShowPassword(!showPassword)}
-                    disabled={isLoading}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-4 w-4 text-muted-foreground" />
-                    ) : (
-                      <Eye className="h-4 w-4 text-muted-foreground" />
-                    )}
-                  </Button>
-                </div>
-                {formData.password && (
-                  <div className="flex items-center gap-2 mt-2">
-                    <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
-                      <div
-                        className={`h-full ${strength.color} transition-all duration-300`}
-                        style={{
-                          width:
-                            strength.label === "Weak"
-                              ? "33.33%"
-                              : strength.label === "Fair"
-                              ? "66.66%"
-                              : "100%",
-                        }}
-                      />
-                    </div>
-                    <span className="text-xs text-muted-foreground w-12 text-right">
-                      {strength.label}
-                    </span>
-                  </div>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Confirm Password</Label>
-                <Input
-                  id="confirmPassword"
-                  name="confirmPassword"
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Password</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <input
                   type={showPassword ? "text" : "password"}
+                  name="password"
+                  placeholder="••••••••"
+                  value={formData.password}
+                  onChange={handleChange}
                   required
+                  className="w-full bg-muted border border-border rounded-lg pl-10 pr-10 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              {formData.password && (
+                <div className="flex items-center gap-2 pt-1">
+                  <div className="h-1 flex-1 bg-muted rounded-full overflow-hidden">
+                    <div className={`h-full ${strength.color} transition-all`} style={{ width: strength.label === "Weak" ? "33%" : strength.label === "Fair" ? "66%" : "100%" }} />
+                  </div>
+                  <span className="text-[11px] text-muted-foreground">{strength.label}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Confirm Password</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <input
+                  type="password"
+                  name="confirmPassword"
+                  placeholder="••••••••"
                   value={formData.confirmPassword}
                   onChange={handleChange}
-                  disabled={isLoading}
+                  required
+                  className="w-full bg-muted border border-border rounded-lg pl-10 pr-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition"
                 />
               </div>
             </div>
 
-            <div className="flex items-center space-x-2">
-              <Checkbox
+            <div className="flex items-center space-x-2 pt-2">
+              <input
+                type="checkbox"
                 id="terms"
+                name="termsAccepted"
                 checked={formData.termsAccepted}
-                onCheckedChange={(checked) =>
-                  setFormData({ ...formData, termsAccepted: checked as boolean })
-                }
-                disabled={isLoading}
+                onChange={handleChange}
+                className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
               />
-              <Label
-                htmlFor="terms"
-                className="text-sm font-normal leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-              >
-                I agree to the{" "}
-                <Link href="#" className="text-primary hover:underline">
-                  Terms of Service
-                </Link>{" "}
-                and{" "}
-                <Link href="#" className="text-primary hover:underline">
-                  Privacy Policy
-                </Link>
-                .
-              </Label>
+              <label htmlFor="terms" className="text-xs text-muted-foreground">
+                I agree to the Terms of Service and Privacy Policy
+              </label>
             </div>
 
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Create Account
-            </Button>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full py-2.5 px-4 rounded-lg font-medium text-sm text-primary-foreground bg-primary transition-all disabled:opacity-60 disabled:cursor-not-allowed hover:opacity-90 active:scale-[0.99] flex items-center justify-center gap-2 shadow"
+            >
+              {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+              {isLoading ? "Creating Account..." : "Create Account"}
+            </button>
           </form>
 
-          <p className="text-center text-sm text-muted-foreground">
+          <div className="text-center text-sm text-muted-foreground">
             Already have an account?{" "}
-            <Link href="/login" className="font-semibold text-primary hover:underline">
-              Sign in
+            <Link href="/login" className="text-primary hover:underline font-medium">
+              Sign In
             </Link>
-          </p>
+          </div>
         </div>
       </div>
     </div>
