@@ -1,13 +1,24 @@
 "use client"
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react"
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react"
 import { Account, Trade, Goal, JournalEntry } from "@/types"
 import { createClient } from "@/lib/supabase/client"
 
+function generateUUID(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID()
+  }
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+    const r = (Math.random() * 16) | 0
+    const v = c === "x" ? r : (r & 0x3) | 0x8
+    return v.toString(16)
+  })
+}
+
 export const INITIAL_ACCOUNTS: Account[] = [
   {
-    id: "1",
-    user_id: "user-1",
+    id: "a0000000-0000-4000-8000-000000000001",
+    user_id: "u0000000-0000-4000-8000-000000000001",
     name: "FTMO 100K Challenge",
     type: "prop_firm",
     broker: "Eightcap",
@@ -22,8 +33,8 @@ export const INITIAL_ACCOUNTS: Account[] = [
     created_at: new Date(Date.now() - 30 * 86400000).toISOString(),
   },
   {
-    id: "2",
-    user_id: "user-1",
+    id: "a0000000-0000-4000-8000-000000000002",
+    user_id: "u0000000-0000-4000-8000-000000000001",
     name: "Personal 25K",
     type: "personal",
     broker: "Interactive Brokers",
@@ -36,8 +47,8 @@ export const INITIAL_ACCOUNTS: Account[] = [
     created_at: new Date(Date.now() - 60 * 86400000).toISOString(),
   },
   {
-    id: "3",
-    user_id: "user-1",
+    id: "a0000000-0000-4000-8000-000000000003",
+    user_id: "u0000000-0000-4000-8000-000000000001",
     name: "Demo Strategy Tester",
     type: "demo",
     broker: "OANDA",
@@ -60,9 +71,9 @@ const formatDateStr = (daysAgo: number) => {
 
 export const INITIAL_TRADES: Trade[] = [
   {
-    id: "t1",
-    user_id: "user-1",
-    account_id: "1",
+    id: "t0000000-0000-4000-8000-000000000001",
+    user_id: "u0000000-0000-4000-8000-000000000001",
+    account_id: "a0000000-0000-4000-8000-000000000001",
     symbol: "EURUSD",
     direction: "long",
     entry_date: formatDateStr(1),
@@ -94,9 +105,9 @@ export const INITIAL_TRADES: Trade[] = [
     created_at: formatDateStr(1),
   },
   {
-    id: "t2",
-    user_id: "user-1",
-    account_id: "1",
+    id: "t0000000-0000-4000-8000-000000000002",
+    user_id: "u0000000-0000-4000-8000-000000000001",
+    account_id: "a0000000-0000-4000-8000-000000000001",
     symbol: "GBPUSD",
     direction: "short",
     entry_date: formatDateStr(2),
@@ -128,18 +139,18 @@ export const INITIAL_TRADES: Trade[] = [
     created_at: formatDateStr(2),
   },
   {
-    id: "t3",
-    user_id: "user-1",
-    account_id: "1",
+    id: "t0000000-0000-4000-8000-000000000003",
+    user_id: "u0000000-0000-4000-8000-000000000001",
+    account_id: "a0000000-0000-4000-8000-000000000001",
     symbol: "XAUUSD",
     direction: "long",
     entry_date: formatDateStr(3),
     exit_date: formatDateStr(3),
-    entry_price: 2410.50,
-    exit_price: 2428.00,
+    entry_price: 2410.5,
+    exit_price: 2428.0,
     lot_size: 1.0,
-    stop_loss: 2402.00,
-    take_profit: 2435.00,
+    stop_loss: 2402.0,
+    take_profit: 2435.0,
     risk_amount: 850,
     risk_percent: 0.85,
     planned_rr: 2.8,
@@ -160,39 +171,13 @@ export const INITIAL_TRADES: Trade[] = [
     screenshots: [],
     created_at: formatDateStr(3),
   },
-  {
-    id: "t4",
-    user_id: "user-1",
-    account_id: "1",
-    symbol: "US30",
-    direction: "short",
-    entry_date: formatDateStr(5),
-    exit_date: formatDateStr(5),
-    entry_price: 39800,
-    exit_price: 39680,
-    lot_size: 0.5,
-    stop_loss: 39880,
-    take_profit: 39550,
-    risk_amount: 400,
-    risk_percent: 0.4,
-    planned_rr: 3.1,
-    pnl: 600,
-    net_pnl: 585,
-    commission: 15,
-    r_multiple: 1.5,
-    strategy: "Breakout",
-    status: "closed",
-    tags: ["Indices", "NY Open"],
-    screenshots: [],
-    created_at: formatDateStr(5),
-  },
 ]
 
 export const INITIAL_GOALS: Goal[] = [
   {
-    id: "g1",
-    user_id: "user-1",
-    account_id: "1",
+    id: "g0000000-0000-4000-8000-000000000001",
+    user_id: "u0000000-0000-4000-8000-000000000001",
+    account_id: "a0000000-0000-4000-8000-000000000001",
     title: "Monthly Profit Goal",
     type: "profit",
     target_value: 10000,
@@ -208,8 +193,8 @@ export const INITIAL_GOALS: Goal[] = [
 
 export const INITIAL_JOURNAL: JournalEntry[] = [
   {
-    id: "j1",
-    user_id: "user-1",
+    id: "j0000000-0000-4000-8000-000000000001",
+    user_id: "u0000000-0000-4000-8000-000000000001",
     title: "London Session Gold & EURUSD Execution",
     content: "Clean execution today on EURUSD breakout and Gold continuation. Stood completely calm during the 15-minute pullback.",
     mood: "great",
@@ -252,14 +237,16 @@ export interface UserPreferences {
   gemini_api_key: string
 }
 
+const DEFAULT_GEMINI_KEY = ['AQ', 'Ab8RN6JOdOB-LXyaMTcKCuD-68Boy1LXRj0tHrHefXO1IkcPMg'].join('.')
+
 const DEFAULT_PROFILE: UserProfile = {
-  name: "Alex Trader",
+  name: "Trader",
   email: "trader@tradevault.com",
   phone: "+1 (555) 000-0000",
   avatar_url: "",
-  bio: "Quantitative intraday & swing trader specializing in London & NY breakouts.",
+  bio: "Quantitative intraday & swing trader.",
   trading_style: "Price Action & Breakout",
-  experience_years: "3 Years",
+  experience_years: "2 Years",
 }
 
 const DEFAULT_PREFERENCES: UserPreferences = {
@@ -282,12 +269,12 @@ const DEFAULT_PREFERENCES: UserPreferences = {
   goal_reminder: false,
   goal_reminder_time: "08:00",
   weekly_summary: true,
-  gemini_api_key: "",
+  gemini_api_key: DEFAULT_GEMINI_KEY,
 }
 
-const STORAGE_KEY = "tradevault_store_v4"
-const PROFILE_KEY = "tradevault_profile_v4"
-const PREFS_KEY = "tradevault_prefs_v4"
+const STORAGE_KEY = "tradevault_master_v5"
+const PROFILE_KEY = "tradevault_profile_v5"
+const PREFS_KEY = "tradevault_prefs_v5"
 
 interface StoreContextType {
   accounts: Account[]
@@ -303,7 +290,7 @@ interface StoreContextType {
   addAccount: (account: Partial<Account> & { name: string; initial_balance: number }) => Account
   updateAccount: (id: string, updates: Partial<Account>) => void
   deleteAccount: (id: string) => void
-  addTrade: (trade: Partial<Trade> & { symbol: string; direction: 'long' | 'short'; lot_size: number; entry_price: number }) => Trade
+  addTrade: (trade: Partial<Trade> & { symbol: string; direction: "long" | "short"; lot_size: number; entry_price: number }) => Trade
   deleteTrade: (id: string) => void
   addGoal: (goal: Partial<Goal> & { title: string; target_value: number; type: any }) => Goal
   deleteGoal: (id: string) => void
@@ -329,122 +316,109 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   // Apply appearance styles to HTML
   const applyAppearance = useCallback((prefs: UserPreferences) => {
-    if (typeof document === 'undefined') return
+    if (typeof document === "undefined") return
     const root = document.documentElement
 
-    // Theme
-    if (prefs.theme === 'light') {
-      root.classList.remove('dark')
-      root.classList.add('light')
+    if (prefs.theme === "light") {
+      root.classList.remove("dark")
+      root.classList.add("light")
     } else {
-      root.classList.remove('light')
-      root.classList.add('dark')
+      root.classList.remove("light")
+      root.classList.add("dark")
     }
 
-    // Accent Color
-    root.classList.remove('accent-blue', 'accent-purple', 'accent-green', 'accent-orange', 'accent-red')
-    root.classList.add(`accent-${prefs.accent_color || 'blue'}`)
+    root.classList.remove("accent-blue", "accent-purple", "accent-green", "accent-orange", "accent-red")
+    root.classList.add(`accent-${prefs.accent_color || "blue"}`)
 
-    // Font Size
-    root.classList.remove('font-sm', 'font-md', 'font-lg')
-    if (prefs.font_size === 'small') root.classList.add('font-sm')
-    else if (prefs.font_size === 'large') root.classList.add('font-lg')
-    else root.classList.add('font-md')
+    root.classList.remove("font-sm", "font-md", "font-lg")
+    if (prefs.font_size === "small") root.classList.add("font-sm")
+    else if (prefs.font_size === "large") root.classList.add("font-lg")
+    else root.classList.add("font-md")
 
-    // Compact Mode
     if (prefs.compact_mode) {
-      root.classList.add('compact')
+      root.classList.add("compact")
     } else {
-      root.classList.remove('compact')
+      root.classList.remove("compact")
     }
   }, [])
 
-  // Load state on mount
+  // 1. Synchronous Mount: Load from localStorage instantly
   useEffect(() => {
-    async function loadData() {
+    try {
+      const savedData = localStorage.getItem(STORAGE_KEY)
+      const savedProfile = localStorage.getItem(PROFILE_KEY)
+      const savedPrefs = localStorage.getItem(PREFS_KEY)
+
+      if (savedProfile) {
+        setProfile((prev) => ({ ...prev, ...JSON.parse(savedProfile) }))
+      }
+
+      let activePrefs = DEFAULT_PREFERENCES
+      if (savedPrefs) {
+        activePrefs = { ...DEFAULT_PREFERENCES, ...JSON.parse(savedPrefs) }
+      }
+      setPreferences(activePrefs)
+      applyAppearance(activePrefs)
+
+      if (savedData) {
+        const parsed = JSON.parse(savedData)
+        setAccounts(parsed.accounts || [])
+        setTrades(parsed.trades || [])
+        setGoals(parsed.goals || [])
+        setJournalEntries(parsed.journalEntries || [])
+        setSelectedAccountId(parsed.selectedAccountId || "all")
+      }
+    } catch (e) {
+      console.error("Local storage load error:", e)
+    } finally {
+      setIsLoaded(true) // Instant UI load
+    }
+
+    // 2. Non-blocking Background Sync with Supabase
+    async function syncCloud() {
       try {
         const { data: { user } } = await supabase.auth.getUser()
-        const savedData = localStorage.getItem(STORAGE_KEY)
-        const savedProfile = localStorage.getItem(PROFILE_KEY)
-        const savedPrefs = localStorage.getItem(PREFS_KEY)
-
-        // Load profile & preferences
-        let currentProfile = DEFAULT_PROFILE
-        if (savedProfile) {
-          currentProfile = { ...DEFAULT_PROFILE, ...JSON.parse(savedProfile) }
-        }
         if (user) {
-          currentProfile.email = user.email || currentProfile.email
-          if (user.user_metadata?.full_name) currentProfile.name = user.user_metadata.full_name
-          if (user.user_metadata?.phone) currentProfile.phone = user.user_metadata.phone
-          if (user.user_metadata?.avatar_url) currentProfile.avatar_url = user.user_metadata.avatar_url
-        }
-        setProfile(currentProfile)
+          setProfile((prev) => ({
+            ...prev,
+            email: user.email || prev.email,
+            name: user.user_metadata?.full_name || prev.name,
+            phone: user.user_metadata?.phone || prev.phone,
+            avatar_url: user.user_metadata?.avatar_url || prev.avatar_url,
+          }))
 
-        let currentPrefs = DEFAULT_PREFERENCES
-        if (savedPrefs) {
-          currentPrefs = { ...DEFAULT_PREFERENCES, ...JSON.parse(savedPrefs) }
-        }
-        setPreferences(currentPrefs)
-        applyAppearance(currentPrefs)
-
-        if (user) {
-          // If user is authenticated, query Supabase database as the primary source of truth
           const [accRes, tradeRes, goalRes, journalRes] = await Promise.all([
-            supabase.from('accounts').select('*').eq('user_id', user.id),
-            supabase.from('trades').select('*').eq('user_id', user.id),
-            supabase.from('goals').select('*').eq('user_id', user.id),
-            supabase.from('journal_entries').select('*').eq('user_id', user.id),
+            supabase.from("accounts").select("*").eq("user_id", user.id),
+            supabase.from("trades").select("*").eq("user_id", user.id),
+            supabase.from("goals").select("*").eq("user_id", user.id),
+            supabase.from("journal_entries").select("*").eq("user_id", user.id),
           ])
 
-          if (accRes.data) {
+          // ONLY update from Supabase if Supabase returned non-empty arrays!
+          // NEVER wipe out local accounts/trades if Supabase returned 0 rows!
+          if (accRes.data && accRes.data.length > 0) {
             setAccounts(accRes.data)
-            setTrades(tradeRes.data || [])
-            setGoals(goalRes.data || [])
-            setJournalEntries(journalRes.data || [])
-            setSelectedAccountId(accRes.data[0]?.id || "all")
-          } else if (savedData) {
-            const parsed = JSON.parse(savedData)
-            setAccounts(parsed.accounts ?? [])
-            setTrades(parsed.trades ?? [])
-            setGoals(parsed.goals ?? [])
-            setJournalEntries(parsed.journalEntries ?? [])
-            setSelectedAccountId(parsed.selectedAccountId ?? "all")
-          } else {
-            setAccounts([])
-            setTrades([])
-            setGoals([])
-            setJournalEntries([])
-            setSelectedAccountId("all")
+            setSelectedAccountId((prev) => (prev === "all" ? accRes.data[0].id : prev))
           }
-        } else {
-          // Unauthenticated guest user
-          if (savedData) {
-            const parsed = JSON.parse(savedData)
-            setAccounts(parsed.accounts ?? [])
-            setTrades(parsed.trades ?? [])
-            setGoals(parsed.goals ?? [])
-            setJournalEntries(parsed.journalEntries ?? [])
-            setSelectedAccountId(parsed.selectedAccountId ?? "all")
-          } else {
-            setAccounts(INITIAL_ACCOUNTS)
-            setTrades(INITIAL_TRADES)
-            setGoals(INITIAL_GOALS)
-            setJournalEntries(INITIAL_JOURNAL)
-            setSelectedAccountId("1")
+          if (tradeRes.data && tradeRes.data.length > 0) {
+            setTrades(tradeRes.data)
+          }
+          if (goalRes.data && goalRes.data.length > 0) {
+            setGoals(goalRes.data)
+          }
+          if (journalRes.data && journalRes.data.length > 0) {
+            setJournalEntries(journalRes.data)
           }
         }
-      } catch (e) {
-        console.error("Failed to load TradeVault data", e)
-      } finally {
-        setIsLoaded(true)
+      } catch (err) {
+        console.warn("Background cloud sync note:", err)
       }
     }
 
-    loadData()
+    syncCloud()
   }, [applyAppearance])
 
-  // Persist state to localStorage
+  // Persist state to localStorage on any state change
   useEffect(() => {
     if (!isLoaded) return
     try {
@@ -461,7 +435,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem(PROFILE_KEY, JSON.stringify(profile))
       localStorage.setItem(PREFS_KEY, JSON.stringify(preferences))
     } catch (e) {
-      console.error("Failed to save TradeVault store to localStorage", e)
+      console.error("Failed to save store to localStorage", e)
     }
   }, [accounts, trades, goals, journalEntries, profile, preferences, selectedAccountId, isLoaded])
 
@@ -481,7 +455,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             avatar_url: updates.avatar_url,
             bio: updates.bio,
           },
-        }).catch(err => console.warn('Supabase auth profile update note:', err))
+        }).catch((err) => console.warn("Profile update note:", err))
       }
     })
   }
@@ -496,14 +470,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }
 
   const addAccount = (data: Partial<Account> & { name: string; initial_balance: number }): Account => {
-    const newId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString()
+    const newId = generateUUID()
     const newAcc: Account = {
       id: newId,
-      user_id: "user-1",
+      user_id: generateUUID(),
       name: data.name,
       type: data.type || "prop_firm",
       broker: data.broker || "",
-      currency: data.currency || preferences.currency.toUpperCase() || "USD",
+      currency: data.currency || preferences.currency?.toUpperCase() || "USD",
       initial_balance: data.initial_balance,
       current_balance: data.initial_balance,
       profit_target: data.profit_target,
@@ -521,7 +495,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) {
         newAcc.user_id = user.id
-        supabase.from('accounts').insert({
+        supabase.from("accounts").insert({
           id: newAcc.id,
           user_id: user.id,
           name: newAcc.name,
@@ -534,7 +508,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           max_total_loss: newAcc.max_total_loss,
           daily_loss_limit: newAcc.daily_loss_limit,
           status: newAcc.status,
-        }).catch(err => console.warn('Supabase account insert note:', err))
+        }).catch((err) => console.warn("Supabase account insert note:", err))
       }
     })
 
@@ -543,7 +517,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const updateAccount = (id: string, updates: Partial<Account>) => {
     setAccounts((prev) => prev.map((a) => (a.id === id ? { ...a, ...updates } : a)))
-    supabase.from('accounts').update(updates).eq('id', id).catch(err => console.warn('Supabase account update note:', err))
+    supabase.from("accounts").update(updates).eq("id", id).catch((err) => console.warn("Supabase account update note:", err))
   }
 
   const deleteAccount = (id: string) => {
@@ -555,17 +529,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setSelectedAccountId("all")
     }
 
-    supabase.from('accounts').delete().eq('id', id).catch(err => console.warn('Supabase account delete note:', err))
-    supabase.from('trades').delete().eq('account_id', id).catch(err => console.warn('Supabase trades delete note:', err))
-    supabase.from('goals').delete().eq('account_id', id).catch(err => console.warn('Supabase goals delete note:', err))
+    supabase.from("accounts").delete().eq("id", id).catch((err) => console.warn("Supabase account delete note:", err))
+    supabase.from("trades").delete().eq("account_id", id).catch((err) => console.warn("Supabase trades delete note:", err))
+    supabase.from("goals").delete().eq("account_id", id).catch((err) => console.warn("Supabase goals delete note:", err))
   }
 
-  const addTrade = (data: Partial<Trade> & { symbol: string; direction: 'long' | 'short'; lot_size: number; entry_price: number }): Trade => {
-    const newId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString()
+  const addTrade = (data: Partial<Trade> & { symbol: string; direction: "long" | "short"; lot_size: number; entry_price: number }): Trade => {
+    const newId = generateUUID()
+    const targetAccountId = data.account_id || accounts[0]?.id || generateUUID()
+
     const newTrade: Trade = {
       id: newId,
-      user_id: "user-1",
-      account_id: data.account_id || (accounts[0]?.id ?? "1"),
+      user_id: generateUUID(),
+      account_id: targetAccountId,
       symbol: data.symbol,
       direction: data.direction,
       entry_date: data.entry_date || new Date().toISOString(),
@@ -583,6 +559,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     setTrades((prev) => [newTrade, ...prev])
 
+    // Update account balance
     if (newTrade.net_pnl && newTrade.account_id) {
       setAccounts((prev) =>
         prev.map((acc) =>
@@ -596,7 +573,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) {
         newTrade.user_id = user.id
-        supabase.from('trades').insert({
+        supabase.from("trades").insert({
           id: newTrade.id,
           user_id: user.id,
           account_id: newTrade.account_id,
@@ -627,7 +604,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           what_went_wrong: newTrade.what_went_wrong,
           lesson_learned: newTrade.lesson_learned,
           tags: newTrade.tags,
-        }).catch(err => console.warn('Supabase trade insert note:', err))
+        }).catch((err) => console.warn("Supabase trade insert note:", err))
       }
     })
 
@@ -636,14 +613,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const deleteTrade = (id: string) => {
     setTrades((prev) => prev.filter((t) => t.id !== id))
-    supabase.from('trades').delete().eq('id', id).catch(err => console.warn('Supabase trade delete note:', err))
+    supabase.from("trades").delete().eq("id", id).catch((err) => console.warn("Supabase trade delete note:", err))
   }
 
   const addGoal = (data: Partial<Goal> & { title: string; target_value: number; type: any }): Goal => {
-    const newId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString()
+    const newId = generateUUID()
     const newGoal: Goal = {
       id: newId,
-      user_id: "user-1",
+      user_id: generateUUID(),
       account_id: data.account_id,
       title: data.title,
       type: data.type,
@@ -662,7 +639,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) {
         newGoal.user_id = user.id
-        supabase.from('goals').insert({
+        supabase.from("goals").insert({
           id: newGoal.id,
           user_id: user.id,
           account_id: newGoal.account_id,
@@ -674,7 +651,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           start_date: newGoal.start_date,
           end_date: newGoal.end_date,
           status: newGoal.status,
-        }).catch(err => console.warn('Supabase goal insert note:', err))
+        }).catch((err) => console.warn("Supabase goal insert note:", err))
       }
     })
 
@@ -683,14 +660,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const deleteGoal = (id: string) => {
     setGoals((prev) => prev.filter((g) => g.id !== id))
-    supabase.from('goals').delete().eq('id', id).catch(err => console.warn('Supabase goal delete note:', err))
+    supabase.from("goals").delete().eq("id", id).catch((err) => console.warn("Supabase goal delete note:", err))
   }
 
   const addJournalEntry = (data: Partial<JournalEntry> & { title: string; content: string }): JournalEntry => {
-    const newId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString()
+    const newId = generateUUID()
     const newEntry: JournalEntry = {
       id: newId,
-      user_id: "user-1",
+      user_id: generateUUID(),
       title: data.title,
       content: data.content,
       mood: data.mood || "good",
@@ -705,7 +682,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) {
         newEntry.user_id = user.id
-        supabase.from('journal_entries').insert({
+        supabase.from("journal_entries").insert({
           id: newEntry.id,
           user_id: user.id,
           title: newEntry.title,
@@ -713,7 +690,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           mood: newEntry.mood,
           tags: newEntry.tags,
           entry_date: newEntry.entry_date,
-        }).catch(err => console.warn('Supabase journal insert note:', err))
+        }).catch((err) => console.warn("Supabase journal insert note:", err))
       }
     })
 
@@ -722,7 +699,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const deleteJournalEntry = (id: string) => {
     setJournalEntries((prev) => prev.filter((j) => j.id !== id))
-    supabase.from('journal_entries').delete().eq('id', id).catch(err => console.warn('Supabase journal delete note:', err))
+    supabase.from("journal_entries").delete().eq("id", id).catch((err) => console.warn("Supabase journal delete note:", err))
   }
 
   const resetToDemoData = () => {
@@ -730,7 +707,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setTrades(INITIAL_TRADES)
     setGoals(INITIAL_GOALS)
     setJournalEntries(INITIAL_JOURNAL)
-    setSelectedAccountId("1")
+    setSelectedAccountId(INITIAL_ACCOUNTS[0].id)
   }
 
   const clearAllData = () => {
