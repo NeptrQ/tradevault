@@ -170,17 +170,35 @@ export default function RiskManagementPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <Label>Risk %</Label>
-                      <span className="text-sm font-medium">{riskPercent}%</span>
+                    <div className="flex justify-between items-center">
+                      <Label>Risk % per Trade</Label>
+                      <div className="flex items-center gap-1.5">
+                        <Input
+                          type="number"
+                          step="0.1"
+                          min="0.1"
+                          max="10"
+                          value={riskPercent}
+                          onChange={(e) => setRiskPercent(Math.max(0.1, Number(e.target.value)))}
+                          className="h-8 w-20 text-right font-mono font-bold text-primary"
+                        />
+                        <span className="text-sm font-semibold text-muted-foreground">%</span>
+                      </div>
                     </div>
                     <Slider
                       value={[riskPercent]}
                       onValueChange={(val) => setRiskPercent(val[0])}
+                      min={0.1}
                       max={5}
                       step={0.1}
                       className="py-2"
                     />
+                    <div className="flex justify-between text-[11px] text-muted-foreground px-0.5">
+                      <span>0.1% (Ultra Safe)</span>
+                      <span>1.0% (Standard)</span>
+                      <span>2.0% (Limit)</span>
+                      <span>5.0% (Aggressive)</span>
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="entry">Entry Price</Label>

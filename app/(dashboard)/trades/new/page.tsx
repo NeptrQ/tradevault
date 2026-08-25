@@ -457,7 +457,7 @@ export default function AddTradePage() {
                   min={1} 
                   max={10} 
                   step={1} 
-                  defaultValue={[5]} 
+                  value={[form.watch('confidence') || 5]} 
                   onValueChange={(vals) => form.setValue('confidence', vals[0])}
                 />
                 <div className="flex justify-between text-xs text-muted-foreground">
